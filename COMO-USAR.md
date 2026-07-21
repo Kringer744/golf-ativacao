@@ -2,6 +2,36 @@
 
 Sistema completo: **formulário no celular → código → jogo no telão → ranking**, com banco NocoDB.
 
+## 🚨 PLANO B — E SE O WI-FI/4G FALHAR NO EVENTO?
+
+O sistema roda **100% offline** no notebook do estande. Prepare ANTES do evento:
+
+1. **Instale o Python 3** no notebook (python.org — no Windows, marque "Add to PATH").
+2. **Copie a pasta do projeto** pro notebook (pendrive serve) — incluindo o arquivo `nocodb.token`.
+3. **Leve o vídeo da propaganda** num pendrive.
+4. Teste em casa: `python3 servidor.py` (Windows: `py servidor.py`).
+
+**No dia, se a internet cair:**
+
+1. No notebook: `python3 servidor.py` → abre o telão em `http://localhost:8000` (câmera funciona em localhost).
+2. Carregue o vídeo (⚙ Admin → Telão) e configure a câmera normalmente — tudo funciona igual, inclusive `/camera`.
+3. **Códigos**, escolha:
+   - **Opção A**: hotspot local de um celular (não usa dados) → notebook conecta → os celulares dos participantes acessam `http://IP-DO-NOTEBOOK:8000/form` (o servidor mostra o IP ao iniciar). Códigos funcionam normalmente, salvos localmente.
+   - **Opção B**: pula o código — o staff usa **"digitar o nome manualmente"** no telão.
+4. Toda inscrição e jogada fica guardada em `data/` (arquivos JSON dentro da pasta).
+
+**Quando a internet voltar** (no evento ou em casa):
+
+```
+python3 servidor.py --sync
+```
+
+Sobe tudo que ficou salvo localmente pro NocoDB, sem duplicar. ✅
+
+O fallback também é **automático**: mesmo rodando na nuvem, se o NocoDB piscar, o servidor salva local, o jogo nunca trava — depois é só rodar o `--sync`.
+
+---
+
 ## Fluxo do evento
 
 1. A pessoa acessa o **formulário pelo celular** (`/form`), preenche nome/WhatsApp e recebe um **código de 4 letras** na tela.

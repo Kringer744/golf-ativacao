@@ -175,18 +175,22 @@ def db_create_inscricao(nome, whatsapp, email):
     from datetime import datetime
     now = datetime.now().isoformat(timespec="seconds")
     if noco_ready():
-        tid = noco_cfg()["tables"]["inscricoes"]
-        # códigos existentes (últimos 1000)
-        rows = noco_req("GET", f"/api/v2/tables/{tid}/records?limit=1000&fields=Codigo")
-        existing = {r.get("Codigo") for r in rows.get("list", [])}
-        code = gen_code(existing)
-        noco_req("POST", f"/api/v2/tables/{tid}/records",
-                 {"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email, "CriadoEm": now})
-        return code
+        try:
+            tid = noco_cfg()["tables"]["inscricoes"]
+            # códigos existentes (últimos 1000)
+            rows = noco_req("GET", f"/api/v2/tables/{tid}/records?limit=1000&fields=Codigo")
+            existing = {r.get("Codigo") for r in rows.get("list", [])}
+            code = gen_code(existing)
+            noco_req("POST", f"/api/v2/tables/{tid}/records",
+                     {"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email, "CriadoEm": now})
+            return code
+        except Exception:
+            pass  # sem internet/banco → PLANO B: salva local e sincroniza depois
     with lock:
         rows = local_load("inscricoes")
         code = gen_code({r["Codigo"] for r in rows})
-        rows.append({"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email, "CriadoEm": now})
+        rows.append({"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email,
+                     "CriadoEm": now, "_pendente": True})
         local_save("inscricoes", rows)
     return code
 
@@ -194,10 +198,14 @@ def db_create_inscricao(nome, whatsapp, email):
 def db_find_inscricao(code):
     code = code.strip().upper()
     if noco_ready():
-        tid = noco_cfg()["tables"]["inscricoes"]
-        rows = noco_req("GET", f"/api/v2/tables/{tid}/records?where=(Codigo,eq,{code})&limit=1")
-        lst = rows.get("list", [])
-        return lst[0] if lst else None
+        try:
+            tid = noco_cfg()["tables"]["inscricoes"]
+            rows = noco_req("GET", f"/api/v2/tables/{tid}/records?where=(Codigo,eq,{code})&limit=1")
+            lst = rows.get("list", [])
+            if lst:
+                return lst[0]
+        except Exception:
+            pass  # cai na busca local
     with lock:
         for r in local_load("inscricoes"):
             if r["Codigo"] == code:
@@ -215,17 +223,21 @@ def db_save_jogada(j):
         "Dia": j.get("day", ""), "CriadoEm": j.get("createdAt", ""),
     }
     if noco_ready():
-        tid = noco_cfg()["tables"]["jogadas"]
-        found = noco_req("GET", f"/api/v2/tables/{tid}/records?where=(LocalId,eq,{row['LocalId']})&limit=1").get("list", [])
-        if found:
-            row["Id"] = found[0]["Id"]
-            noco_req("PATCH", f"/api/v2/tables/{tid}/records", [row])
-        else:
-            noco_req("POST", f"/api/v2/tables/{tid}/records", row)
-        return
+        try:
+            tid = noco_cfg()["tables"]["jogadas"]
+            found = noco_req("GET", f"/api/v2/tables/{tid}/records?where=(LocalId,eq,{row['LocalId']})&limit=1").get("list", [])
+            if found:
+                row["Id"] = found[0]["Id"]
+                noco_req("PATCH", f"/api/v2/tables/{tid}/records", [row])
+            else:
+                noco_req("POST", f"/api/v2/tables/{tid}/records", row)
+            return
+        except Exception:
+            pass  # sem internet/banco → PLANO B: salva local e sincroniza depois
     with lock:
         rows = local_load("jogadas")
         rows = [r for r in rows if r.get("LocalId") != row["LocalId"]]
+        row["_pendente"] = True
         rows.append(row)
         local_save("jogadas", rows)
 
@@ -328,10 +340,58 @@ def ips_locais():
     return sorted(ips)
 
 
+def noco_sync():
+    """Sobe para o NocoDB tudo que ficou salvo localmente (modo offline)."""
+    if not noco_ready():
+        print("✗ NocoDB não configurado (nocodb.json / NOCODB_TOKEN). Nada a fazer.")
+        return
+    try:
+        noco_req("GET", "/api/v2/meta/bases")
+    except Exception as e:
+        print(f"✗ Sem conexão com o NocoDB agora ({e}). Tente de novo quando a internet voltar.")
+        return
+
+    ins = local_load("inscricoes")
+    tid = noco_cfg()["tables"]["inscricoes"]
+    subidas = 0
+    for r in ins:
+        try:
+            found = noco_req("GET", f"/api/v2/tables/{tid}/records?where=(Codigo,eq,{r['Codigo']})&limit=1").get("list", [])
+            if not found:
+                noco_req("POST", f"/api/v2/tables/{tid}/records",
+                         {k: v for k, v in r.items() if not k.startswith("_")})
+                subidas += 1
+            r.pop("_pendente", None)
+        except Exception as e:
+            print(f"  ! inscrição {r.get('Codigo')}: {e}")
+    local_save("inscricoes", ins)
+    print(f"✓ Inscrições: {subidas} enviada(s) ao NocoDB ({len(ins)} no arquivo local)")
+
+    jog = local_load("jogadas")
+    enviadas = 0
+    for r in jog:
+        try:
+            db_save_jogada({
+                "id": r.get("LocalId"), "code": r.get("Codigo"), "name": r.get("Nome"),
+                "strokes": r.get("Tacadas"), "timeMs": r.get("TempoMs"),
+                "status": r.get("Status"), "auto": r.get("Auto"),
+                "day": r.get("Dia"), "createdAt": r.get("CriadoEm"),
+            })
+            r.pop("_pendente", None)
+            enviadas += 1
+        except Exception as e:
+            print(f"  ! jogada {r.get('LocalId')}: {e}")
+    local_save("jogadas", jog)
+    print(f"✓ Jogadas: {enviadas} sincronizada(s) ao NocoDB ({len(jog)} no arquivo local)")
+
+
 if __name__ == "__main__":
     os.chdir(BASE)
     if "--setup" in sys.argv:
         noco_setup()
+        sys.exit(0)
+    if "--sync" in sys.argv:
+        noco_sync()
         sys.exit(0)
 
     if not os.path.exists(NOCO_CFG):
