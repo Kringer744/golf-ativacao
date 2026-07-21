@@ -543,12 +543,12 @@ function celebrate(e){
   $("#celebOv").classList.add("show");
   runConfetti(6500);
   clearTimeout(celebT);
-  celebT=setTimeout(closeCeleb, 7000);
+  celebT=setTimeout(closeCeleb, 6500); // some sozinha e mostra o ranking
 }
 function closeCeleb(){
   clearTimeout(celebT);
   $("#celebOv").classList.remove("show");
-  if(mode==="celeb") resetToCode();
+  if(mode==="celeb") openRankOv(true); // sequência: parabéns → ranking do dia → volta
 }
 $("#celebOv").addEventListener("click",closeCeleb);
 
@@ -596,15 +596,22 @@ function rankTableHTML(rows,limit){
   });
   return h+"</tbody></table>";
 }
-function openRankOv(){
+let rankT=null;
+function openRankOv(autoClose){
   const day=todayStr();
   const rows=rankedRows(day);
   $("#rankDay").textContent=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"});
   $("#rankBody").innerHTML=rows.length?rankTableHTML(rows,10):'<div class="empty" style="font-size:20px">Ainda não há jogadas aprovadas hoje.</div>';
   $("#rankOv").classList.add("show");
+  clearTimeout(rankT);
+  if(autoClose) rankT=setTimeout(closeRankOv, 9000); // some sozinho e volta pro jogo
 }
-function closeRankOv(){ $("#rankOv").classList.remove("show"); }
-$("#showRankBtn").onclick=()=>{ closeDrawer(); openRankOv(); };
+function closeRankOv(){
+  clearTimeout(rankT);
+  $("#rankOv").classList.remove("show");
+  if(mode==="celeb") resetToCode();
+}
+$("#showRankBtn").onclick=()=>{ closeDrawer(); openRankOv(false); };
 $("#rankOv").addEventListener("click",closeRankOv);
 
 /* admin ranking list */
@@ -948,6 +955,17 @@ async function keepAwake(){
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") keepAwake(); });
 document.addEventListener("click",keepAwake,{once:true});
 keepAwake();
+
+/* sincroniza config alterada em outra aba (ex.: tela /camera) */
+window.addEventListener("storage",e=>{
+  if(e.key!==K_CFG) return;
+  cfg=loadCfg();
+  cam.roi=cfg.camRoi||null;
+  cam.ref=null; cam.hitSince=0;
+  $("#sensRange").value=cfg.camSlider||5;
+  updateRoiClear();
+  applyCfg();
+});
 
 /* ================= Init ================= */
 $("#rankDate").value=todayStr();
