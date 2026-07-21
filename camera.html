@@ -233,11 +233,6 @@ async function keepAwake(){
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") keepAwake(); });
 document.addEventListener("click",keepAwake,{once:true});
 
-/* modo offline automático (PWA) */
-if((location.protocol==="https:"||location.hostname==="localhost") && "serviceWorker" in navigator){
-  navigator.serviceWorker.register("/sw.js").catch(()=>{});
-}
-
 startCam();
 requestAnimationFrame(loop);
 keepAwake();

@@ -2,27 +2,33 @@
 
 Sistema completo: **formulário no celular → código → jogo no telão → ranking**, com banco NocoDB.
 
-## 🚨 MODO OFFLINE — AUTOMÁTICO (feito pra quem não é técnico!)
+## 🚨 PLANO B — E SE O WI-FI/4G FALHAR NO EVENTO?
 
-**A pessoa do estande não precisa fazer NADA se a internet cair.** O sistema se vira sozinho:
+O sistema roda **100% offline** no notebook do estande. Prepare ANTES do evento:
 
-- O telão e a tela da câmera **continuam funcionando** (até apertando F5) — as telas ficam salvas no navegador na primeira vez que abrem com internet.
-- Aparece o aviso **"📴 OFFLINE — salvando local"** no topo do telão. As jogadas ficam guardadas no navegador.
-- O código do participante não busca do banco? A tela **já abre sozinha o campo de nome manual** — digita o nome e segue o jogo.
-- Quando a internet voltar: o indicador vira **"🟢 ONLINE"** e tudo que ficou pendente **sobe sozinho** pro banco (sem apertar nada).
+1. **Instale o Python 3** no notebook (python.org — no Windows, marque "Add to PATH").
+2. **Copie a pasta do projeto** pro notebook (pendrive serve) — incluindo o arquivo `nocodb.token`.
+3. **Leve o vídeo da propaganda** num pendrive.
+4. Teste em casa: `python3 servidor.py` (Windows: `py servidor.py`).
 
-### Preparação (fazer UMA vez, antes do evento, por alguém do time):
+**No dia, se a internet cair:**
 
-1. No notebook do estande, **abrir o site com internet** (`https://proxy-golf.p9jgkb.easypanel.host/` e `/camera`) — isso "instala" as telas no navegador.
-2. Carregar o **vídeo** no ⚙ Admin (fica salvo na máquina pra sempre).
-3. Testar a câmera e o quadrado do buraco.
-4. **Não trocar de navegador nem limpar dados de navegação** depois disso.
+1. No notebook: `python3 servidor.py` → abre o telão em `http://localhost:8000` (câmera funciona em localhost).
+2. Carregue o vídeo (⚙ Admin → Telão) e configure a câmera normalmente — tudo funciona igual, inclusive `/camera`.
+3. **Códigos**, escolha:
+   - **Opção A**: hotspot local de um celular (não usa dados) → notebook conecta → os celulares dos participantes acessam `http://IP-DO-NOTEBOOK:8000/form` (o servidor mostra o IP ao iniciar). Códigos funcionam normalmente, salvos localmente.
+   - **Opção B**: pula o código — o staff usa **"digitar o nome manualmente"** no telão.
+4. Toda inscrição e jogada fica guardada em `data/` (arquivos JSON dentro da pasta).
 
-### Último recurso (se o notebook nunca abriu o site e não há internet nenhuma):
+**Quando a internet voltar** (no evento ou em casa):
 
-Dois cliques no arquivo **`INICIAR-OFFLINE-WINDOWS.bat`** (Windows) ou **`iniciar-offline-linux-mac.sh`** (Linux/Mac) dentro da pasta do projeto — o telão abre sozinho no navegador em `http://localhost:8000`. (Precisa do Python 3 instalado — deixar pronto antes do evento.)
+```
+python3 servidor.py --sync
+```
 
-Para subir manualmente os dados guardados no computador (opcional, um técnico faz depois): `python3 servidor.py --sync`
+Sobe tudo que ficou salvo localmente pro NocoDB, sem duplicar. ✅
+
+O fallback também é **automático**: mesmo rodando na nuvem, se o NocoDB piscar, o servidor salva local, o jogo nunca trava — depois é só rodar o `--sync`.
 
 ---
 

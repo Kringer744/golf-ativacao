@@ -39,9 +39,6 @@
     box-shadow:0 0 0 3px #0d1117,0 0 0 5px var(--accent)}
   .brand h1{font-size:16px; letter-spacing:1px}
   .brand span{color:var(--muted); font-weight:600; font-size:11px; display:block}
-  .netst{margin-left:14px; font-size:11px; font-weight:800; letter-spacing:.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--line)}
-  .netst.on{color:var(--green); border-color:rgba(38,194,129,.4)}
-  .netst.off{color:var(--amber); border-color:rgba(245,166,35,.5)}
 
   .gwrap{flex:1; display:flex; align-items:center; justify-content:center; padding:24px}
   .gcard{width:100%; max-width:560px; text-align:center}
@@ -197,7 +194,6 @@
     <div class="brand">
       <div class="dot"></div>
       <div><h1>GOLF CHALLENGE</h1><span id="evName">Ativação — Ranking do Dia</span></div>
-      <span class="netst" id="netSt"></span>
     </div>
     <div class="gwrap">
       <div class="gcard">
@@ -418,13 +414,7 @@ async function unlockByCode(){
     if(!r.ok||!j.nome) throw new Error(j.error||"Código não encontrado");
     startReady(j.nome, code);
   }catch(err){
-    if(err.message==="Failed to fetch"){
-      $("#codeErr").textContent="📴 Sem internet — clique em \"digitar o nome manualmente\" abaixo";
-      $("#nameFallback").style.display="block";
-      setNet(false);
-    }else{
-      $("#codeErr").textContent=String(err.message||err);
-    }
+    $("#codeErr").textContent = err.message==="Failed to fetch" ? "Servidor indisponível — use o nome manual" : String(err.message||err);
     beep(300,0.2,"sawtooth",0.15);
   }finally{
     $("#codeBtn").disabled=false; $("#codeBtn").textContent="Desbloquear";
@@ -661,56 +651,10 @@ function setStatus(id,status){
   toast(status==="approved"?"Aprovado ✔":"Rejeitado ✕", status==="approved"?"ok":"");
 }
 
-/* ============ SYNC com fila offline (automático, sem comandos) ============
-   Toda jogada entra numa fila local; o navegador tenta enviar na hora e
-   fica reenviando sozinho (a cada 30s e quando a internet voltar). */
-const K_SYNCQ="golf_syncq";
-function qload(){ try{return JSON.parse(localStorage.getItem(K_SYNCQ))||[]}catch(e){return []} }
-function qsave(q){ localStorage.setItem(K_SYNCQ, JSON.stringify(q)); }
-
-function setNet(ok){
-  const el=$("#netSt");
-  const pend=qload().length;
-  if(ok===null){ el.textContent=""; el.className="netst"; return; }
-  el.textContent = ok ? "🟢 ONLINE" : ("📴 OFFLINE — salvando local"+(pend?" ("+pend+")":""));
-  el.className = "netst "+(ok?"on":"off");
-}
-
+/* ================= SYNC NocoDB (via servidor) ================= */
 function syncJogada(e){
-  if(!API){ setNet(null); return; }
-  const q=qload(); q.push(e); qsave(q);
-  flushQueue();
-}
-let flushing=false;
-async function flushQueue(){
-  if(!API||flushing) return;
-  let q=qload();
-  if(!q.length){
-    // sonda leve pra manter o indicador honesto
-    try{ await fetch("/sw.js",{method:"HEAD",cache:"no-store"}); setNet(true); }catch(err){ setNet(false); }
-    return;
-  }
-  flushing=true;
-  try{
-    while(q.length){
-      const r=await fetch("/api/jogada",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(q[0])});
-      if(!r.ok) throw 0;
-      q.shift(); qsave(q);
-    }
-    setNet(true);
-    toast("Sincronizado com o banco ✔","ok");
-  }catch(err){ setNet(false); }
-  flushing=false;
-}
-if(API){
-  setInterval(flushQueue,30000);
-  window.addEventListener("online",flushQueue);
-  flushQueue();
-}
-
-/* modo offline automático (PWA): telas ficam salvas no navegador */
-if(API && "serviceWorker" in navigator){
-  navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  if(!API) return;
+  fetch("/api/jogada",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(e)}).catch(()=>{});
 }
 
 /* ================= CÂMERA (só o buraco) ================= */
