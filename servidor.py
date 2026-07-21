@@ -273,7 +273,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 r = db_find_inscricao(code)
             except Exception as e:
-                return self._json(502, {"error": "Banco indisponível: " + str(e)[:120]})
+                return self._json(424, {"error": "Banco indisponível: " + str(e)[:120]})
             if not r:
                 return self._json(404, {"error": "Código não encontrado"})
             return self._json(200, {"nome": r.get("Nome"), "code": r.get("Codigo")})
@@ -296,7 +296,7 @@ class Handler(SimpleHTTPRequestHandler):
                     str(b.get("whatsapp", "")).strip()[:30],
                     str(b.get("email", "")).strip()[:120])
             except Exception as e:
-                return self._json(502, {"error": "Falha no banco: " + str(e)[:120]})
+                return self._json(424, {"error": "Falha no banco: " + str(e)[:120]})
             return self._json(200, {"code": code})
         if self.path == "/api/jogada":
             b = self._body()
@@ -305,7 +305,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 db_save_jogada(b)
             except Exception as e:
-                return self._json(502, {"error": "Falha no banco: " + str(e)[:120]})
+                return self._json(424, {"error": "Falha no banco: " + str(e)[:120]})
             return self._json(200, {"ok": True})
         self._json(404, {"error": "rota inexistente"})
 
