@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golf Challenge — Monitor da Câmera</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#2a3242; --txt:#e6edf3; --muted:#8b98a9;
+    --accent:#e11d2a; --green:#26c281; --amber:#f5a623; --gold:#f7c948; --red:#e5484d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#000;color:var(--txt);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+  header{
+    display:flex;align-items:center;gap:14px;padding:10px 16px;background:rgba(13,17,23,.9);
+    border-bottom:1px solid var(--line);flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:14px}
+  .dot{width:24px;height:24px;border-radius:50%;
+    background:conic-gradient(from 45deg,#fff 0 25%,var(--accent) 0 50%,#fff 0 75%,var(--accent) 0);
+    box-shadow:0 0 0 2px #0d1117,0 0 0 4px var(--accent)}
+  .spacer{flex:1}
+  .st{font-size:13px;font-weight:700;color:var(--muted)}
+  .st.ok{color:var(--green)} .st.hot{color:var(--gold)}
+  .meterwrap{position:relative;height:14px;background:var(--panel);border:1px solid var(--line);border-radius:99px;overflow:hidden;width:180px}
+  .meter{height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red))}
+  .thmark{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff;opacity:.8}
+  .mini{background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:7px 12px;border-radius:9px;font-weight:700;cursor:pointer;font-size:12px}
+  .mini:hover{border-color:var(--accent)}
+
+  #stage{flex:1;position:relative;background:#000}
+  #cam{width:100%;height:100%;object-fit:contain;display:block}
+  #ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  #msg{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:16px;text-align:center;padding:30px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span> MONITOR DA CÂMERA</div>
+  <span class="st" id="roiSt">—</span>
+  <span class="spacer"></span>
+  <span class="st">SINAL</span>
+  <div class="meterwrap"><div class="meter" id="meter"></div><div class="thmark"></div></div>
+  <span class="st" id="detSt">—</span>
+  <button class="mini" id="refBtn">↺ Recalibrar referência</button>
+  <button class="mini" id="fsBtn">⛶ Tela cheia (F)</button>
+</header>
+
+<div id="stage">
+  <video id="cam" autoplay playsinline muted></video>
+  <canvas id="ov"></canvas>
+  <div id="msg">Abrindo câmera…</div>
+</div>
+
+<script>
+"use strict";
+/* Monitor SOMENTE-VISUAL: espelha a câmera, o quadrado do buraco e o sinal.
+   A detecção oficial (que para o cronômetro) continua na página do telão.
+   Config compartilhada via localStorage (mesmo navegador/máquina do telão). */
+const $=s=>document.querySelector(s);
+const K_CFG="golf_cfg";
+function cfg(){ try{return JSON.parse(localStorage.getItem(K_CFG))||{}}catch(e){return {}} }
+
+const camV=$("#cam"), ov=$("#ov");
+const N=48;
+const octx=(()=>{ const c=document.createElement("canvas"); c.width=N; c.height=N; return c.getContext("2d",{willReadFrequently:true}); })();
+let ref=null, lastT=0, stream=null, curDeviceId=null;
+
+function sensThreshold(){ const v=Number(cfg().camSlider)||5; return 0.55 - v*0.05; }
+
+async function startCam(){
+  const c=cfg();
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    const vc={ width:{ideal:1280}, height:{ideal:720} };
+    if(c.camDeviceId) vc.deviceId={exact:c.camDeviceId};
+    else vc.facingMode={ideal:"environment"};
+    stream=await navigator.mediaDevices.getUserMedia({video:vc,audio:false});
+    curDeviceId=c.camDeviceId||null;
+    camV.srcObject=stream;
+    $("#msg").style.display="none";
+    camV.addEventListener("loadedmetadata",()=>{ ov.width=camV.videoWidth; ov.height=camV.videoHeight; },{once:true});
+  }catch(e){
+    $("#msg").style.display="flex";
+    $("#msg").textContent="Não foi possível abrir a câmera. Confira a permissão do navegador e se a câmera existe nesta máquina.";
+  }
+}
+
+function roiPixels(r){
+  if(!r||!camV.videoWidth) return null;
+  try{
+    octx.drawImage(camV, r.x*camV.videoWidth, r.y*camV.videoHeight, r.w*camV.videoWidth, r.h*camV.videoHeight, 0,0,N,N);
+    return octx.getImageData(0,0,N,N).data;
+  }catch(e){ return null; }
+}
+function diffFrac(cur,ref){
+  let n=0;
+  for(let i=0;i<cur.length;i+=4){
+    const d=Math.abs(cur[i]-ref[i])+Math.abs(cur[i+1]-ref[i+1])+Math.abs(cur[i+2]-ref[i+2]);
+    if(d>95) n++;
+  }
+  return n/(cur.length/4);
+}
+
+function loop(t){
+  requestAnimationFrame(loop);
+  if(t-lastT<66) return;
+  lastT=t;
+  const c=cfg();
+  // se trocou a câmera no telão, acompanha
+  if((c.camDeviceId||null)!==curDeviceId && stream) startCam();
+  if(ov.width!==camV.videoWidth && camV.videoWidth){ ov.width=camV.videoWidth; ov.height=camV.videoHeight; }
+  const ctx=ov.getContext("2d");
+  ctx.clearRect(0,0,ov.width,ov.height);
+  const r=c.camRoi;
+  if(!r){
+    $("#roiSt").textContent="buraco não definido (defina no telão → Admin)";
+    $("#roiSt").className="st";
+    $("#detSt").textContent="—"; $("#meter").style.width="0%";
+    return;
+  }
+  $("#roiSt").textContent="buraco definido ✔";
+  $("#roiSt").className="st ok";
+  let hot=false, f=0;
+  const cur=roiPixels(r);
+  if(cur){
+    if(!ref) ref=new Uint8ClampedArray(cur);
+    f=diffFrac(cur,ref);
+    const th=sensThreshold();
+    hot=f>=th;
+    if(f<th*0.35){ for(let i=0;i<cur.length;i++){ ref[i]=ref[i]*0.95+cur[i]*0.05; } }
+    $("#meter").style.width=Math.min(100, f/(th*2)*100)+"%";
+    $("#detSt").textContent=hot?"⛳ OBJETO NO BURACO":"monitorando";
+    $("#detSt").className="st "+(hot?"hot":"ok");
+  }
+  const X=r.x*ov.width, Y=r.y*ov.height, W=r.w*ov.width, H=r.h*ov.height;
+  ctx.strokeStyle=hot?"#f7c948":"#26c281"; ctx.lineWidth=5;
+  ctx.strokeRect(X,Y,W,H);
+  ctx.fillStyle=hot?"rgba(247,201,72,.28)":"rgba(38,194,129,.12)";
+  ctx.fillRect(X,Y,W,H);
+  ctx.fillStyle=hot?"#f7c948":"#26c281";
+  ctx.font="bold 22px system-ui";
+  ctx.fillText("⛳ BURACO", X+8, Math.max(26,Y-10));
+}
+
+$("#refBtn").onclick=()=>{ ref=null; };
+$("#fsBtn").onclick=()=>{ document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); };
+window.addEventListener("keydown",e=>{ if(e.key==="f"||e.key==="F") $("#fsBtn").click(); });
+window.addEventListener("storage",e=>{ if(e.key===K_CFG) ref=null; }); // ROI/sensibilidade mudou no telão
+
+let wakeLock=null;
+async function keepAwake(){
+  try{
+    if(!wakeLock && "wakeLock" in navigator){
+      wakeLock=await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release",()=>{ wakeLock=null; });
+    }
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") keepAwake(); });
+document.addEventListener("click",keepAwake,{once:true});
+
+startCam();
+requestAnimationFrame(loop);
+keepAwake();
+</script>
+</body>
+</html>

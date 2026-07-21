@@ -279,6 +279,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, {"nome": r.get("Nome"), "code": r.get("Codigo")})
         if self.path in ("/form", "/form/"):
             self.path = "/form.html"
+        elif self.path in ("/camera", "/camera/"):
+            self.path = "/camera.html"
         elif self.path == "/":
             self.path = "/index.html"
         return super().do_GET()
