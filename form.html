@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golf Challenge — Inscrição</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3242;
+    --txt:#e6edf3; --muted:#8b98a9; --accent:#e11d2a; --accent2:#ff3546;
+    --green:#26c281; --green2:#1fa06a; --gold:#f7c948;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    background:radial-gradient(900px 500px at 50% -10%,#1a2330 0%,var(--bg) 60%);
+    color:var(--txt); min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; padding:28px 18px;
+  }
+  .brand{display:flex; align-items:center; gap:12px; font-weight:800; margin-bottom:26px}
+  .brand .dot{width:34px;height:34px;border-radius:50%;
+    background:conic-gradient(from 45deg,#fff 0 25%,var(--accent) 0 50%,#fff 0 75%,var(--accent) 0);
+    box-shadow:0 0 0 3px #0d1117,0 0 0 5px var(--accent)}
+  .brand h1{font-size:18px; letter-spacing:1px}
+  .brand span{color:var(--muted); font-weight:600; font-size:12px; display:block}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:26px 22px; width:100%; max-width:440px}
+  h2{font-size:22px; margin-bottom:6px}
+  .lead{color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:22px}
+  label{display:block; font-size:12px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:1px; margin:16px 0 6px}
+  input{
+    width:100%; background:var(--panel2); border:1.5px solid var(--line); color:var(--txt);
+    padding:15px 16px; border-radius:12px; font-size:17px; font-weight:600; outline:none;
+  }
+  input:focus{border-color:var(--accent)}
+  .chk{display:flex; gap:10px; align-items:flex-start; margin-top:18px; font-size:13px; color:var(--muted); line-height:1.5}
+  .chk input{width:20px; height:20px; margin-top:1px; accent-color:var(--accent)}
+  .btn{
+    border:0; border-radius:14px; font-weight:800; cursor:pointer; font-size:19px;
+    padding:18px; width:100%; color:#fff; text-transform:uppercase; letter-spacing:1px;
+    background:linear-gradient(180deg,var(--green),var(--green2)); margin-top:22px;
+  }
+  .btn:disabled{opacity:.5}
+  .err{color:#ff8f8f; font-weight:700; font-size:14px; margin-top:12px; min-height:18px; text-align:center}
+
+  /* código gerado */
+  #done{display:none; text-align:center}
+  #done .ok{font-size:52px}
+  #done h2{margin-top:6px}
+  .codebox{
+    margin:22px auto 8px; background:var(--panel2); border:2px dashed var(--gold);
+    border-radius:18px; padding:26px 20px; max-width:300px;
+  }
+  .codebox .lbl{font-size:12px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:2px}
+  .codebox .code{font-size:58px; font-weight:900; letter-spacing:10px; color:var(--gold); margin-top:6px; font-variant-numeric:tabular-nums}
+  #done p{color:var(--muted); font-size:14px; line-height:1.6; margin-top:16px}
+  #done b{color:var(--txt)}
+  footer{color:#4a5361; font-size:11px; margin-top:auto; padding-top:26px; text-align:center}
+</style>
+</head>
+<body>
+<div class="brand">
+  <div class="dot"></div>
+  <div><h1>GOLF CHALLENGE</h1><span>Inscreva-se e participe</span></div>
+</div>
+
+<div class="card">
+  <div id="formBox">
+    <h2>⛳ Bora jogar?</h2>
+    <p class="lead">Preencha rapidinho, pegue seu <b>código</b> e apresente no estande para liberar a sua tacada!</p>
+    <form id="f" novalidate>
+      <label for="nome">Nome completo *</label>
+      <input id="nome" name="nome" type="text" autocomplete="name" required>
+      <label for="zap">WhatsApp *</label>
+      <input id="zap" name="whatsapp" type="tel" autocomplete="tel" placeholder="(00) 00000-0000" required>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="opcional">
+      <div class="chk">
+        <input type="checkbox" id="lgpd" required>
+        <span>Autorizo o uso dos meus dados para contato sobre esta ação promocional.</span>
+      </div>
+      <button class="btn" id="sendBtn" type="submit">Gerar meu código</button>
+      <div class="err" id="err"></div>
+    </form>
+  </div>
+
+  <div id="done">
+    <div class="ok">✅</div>
+    <h2>Inscrição confirmada!</h2>
+    <div class="codebox">
+      <div class="lbl">Seu código</div>
+      <div class="code" id="codeOut">····</div>
+    </div>
+    <p>Mostre este código no <b>estande do Golf Challenge</b> para liberar a sua jogada. Boa sorte! 🏌️</p>
+  </div>
+</div>
+
+<footer>Golf Challenge · Ativação promocional</footer>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+$("#f").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const nome=$("#nome").value.trim(), zap=$("#zap").value.trim(), email=$("#email").value.trim();
+  $("#err").textContent="";
+  if(!nome || nome.split(" ").length<1){ $("#err").textContent="Preencha o nome."; return; }
+  if(zap.replace(/\D/g,"").length<10){ $("#err").textContent="Preencha um WhatsApp válido com DDD."; return; }
+  if(!$("#lgpd").checked){ $("#err").textContent="É preciso autorizar o contato para participar."; return; }
+  const btn=$("#sendBtn");
+  btn.disabled=true; btn.textContent="Enviando…";
+  try{
+    const r=await fetch("/api/inscricao",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({nome:nome, whatsapp:zap, email:email})
+    });
+    const j=await r.json();
+    if(!r.ok||!j.code) throw new Error(j.error||"Falha ao gerar o código. Tente de novo.");
+    $("#formBox").style.display="none";
+    $("#done").style.display="block";
+    $("#codeOut").textContent=j.code;
+  }catch(err){
+    $("#err").textContent=(err.message==="Failed to fetch")?"Sem conexão — tente novamente.":String(err.message||err);
+    btn.disabled=false; btn.textContent="Gerar meu código";
+  }
+});
+</script>
+</body>
+</html>

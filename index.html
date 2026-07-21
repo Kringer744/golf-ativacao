@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golf Challenge — Telão</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3242;
+    --txt:#e6edf3; --muted:#8b98a9; --accent:#e11d2a; --accent2:#ff3546;
+    --green:#26c281; --green2:#1fa06a; --amber:#f5a623; --red:#e5484d;
+    --gold:#f7c948;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    background:#000; color:var(--txt); height:100vh; overflow:hidden;
+  }
+
+  /* ================= TELÃO: VÍDEO EM CIMA / JOGO EMBAIXO ================= */
+  #stage{display:flex; flex-direction:column; height:100vh}
+  #adPane{flex:1; min-height:0; background:#000; position:relative; overflow:hidden}
+  #adPane video{width:100%; height:100%; object-fit:cover}
+  #adEmpty{
+    position:absolute; inset:0; display:flex; flex-direction:column; gap:12px;
+    align-items:center; justify-content:center; color:var(--muted); font-size:18px; text-align:center; padding:30px;
+  }
+  #adEmpty b{color:var(--txt)}
+  #gamePane{
+    flex:1; min-height:0; display:flex; flex-direction:column; position:relative;
+    background:radial-gradient(900px 500px at 50% -10%,#1a2330 0%,var(--bg) 60%);
+    border-top:2px solid var(--line);
+    overflow-y:auto;
+  }
+  .brand{display:flex; align-items:center; gap:12px; font-weight:800; padding:18px 22px}
+  .brand .dot{width:30px;height:30px;border-radius:50%;
+    background:conic-gradient(from 45deg,#fff 0 25%,var(--accent) 0 50%,#fff 0 75%,var(--accent) 0);
+    box-shadow:0 0 0 3px #0d1117,0 0 0 5px var(--accent)}
+  .brand h1{font-size:16px; letter-spacing:1px}
+  .brand span{color:var(--muted); font-weight:600; font-size:11px; display:block}
+
+  .gwrap{flex:1; display:flex; align-items:center; justify-content:center; padding:24px}
+  .gcard{width:100%; max-width:560px; text-align:center}
+
+  .glabel{font-size:14px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:2px; margin-bottom:18px}
+  input.big{
+    width:100%; background:var(--panel2); border:2px solid var(--line); color:var(--txt);
+    padding:22px; border-radius:16px; font-size:40px; font-weight:800; outline:none;
+    text-align:center; letter-spacing:8px; text-transform:uppercase;
+  }
+  input.big:focus{border-color:var(--accent)}
+  input.big.name{letter-spacing:1px; font-size:28px; text-transform:none}
+  .btn{
+    border:0; border-radius:16px; font-weight:800; cursor:pointer; font-size:22px;
+    padding:20px; width:100%; color:#fff; text-transform:uppercase; letter-spacing:1px;
+    transition:transform .08s; user-select:none; margin-top:14px;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn-green{background:linear-gradient(180deg,var(--green),var(--green2))}
+  .btn-red{background:linear-gradient(180deg,var(--accent2),var(--accent))}
+  .btn-ghost{background:var(--panel2); color:var(--muted); font-size:15px; padding:14px; border:1px solid var(--line)}
+  .linklike{color:var(--muted); font-size:14px; margin-top:16px; cursor:pointer; text-decoration:underline; display:inline-block}
+  .err{color:var(--red); font-weight:700; margin-top:12px; min-height:20px; font-size:14px}
+
+  .pname{font-size:30px; font-weight:800; margin-bottom:6px}
+  .clock{
+    font-variant-numeric:tabular-nums; font-weight:800; line-height:1;
+    font-size:clamp(70px,10vw,150px); letter-spacing:2px;
+    text-shadow:0 6px 40px rgba(0,0,0,.5);
+  }
+  .clock.warn{color:var(--amber)}
+  .clock.danger{color:var(--red); animation:pulse .6s infinite alternate}
+  @keyframes pulse{to{opacity:.55}}
+  .sub{color:var(--muted); font-size:15px; margin-top:8px; font-weight:600}
+  .strokes{margin-top:22px; font-size:20px; color:var(--muted); font-weight:700}
+  .strokes b{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:64px; height:64px; border-radius:16px; background:var(--panel2);
+    border:2px solid var(--line); color:var(--txt); font-size:38px; margin-left:12px;
+    font-variant-numeric:tabular-nums;
+  }
+  .strokes b.pop{animation:spop .3s}
+  @keyframes spop{40%{transform:scale(1.25); border-color:var(--gold)}}
+  .waitkey{
+    margin-top:26px; font-size:22px; font-weight:800; color:var(--gold);
+    animation:pulse 1s infinite alternate;
+  }
+  .keychip{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:3px 12px; font-family:monospace}
+
+  /* ================= OVERLAYS FULLSCREEN ================= */
+  .fsov{position:fixed; inset:0; z-index:80; display:none; align-items:center; justify-content:center; background:#0b0f14; text-align:center; padding:30px}
+  .fsov.show{display:flex}
+  #celebCv{position:absolute; inset:0; width:100%; height:100%}
+  .c-in{position:relative; animation:cpop .5s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes cpop{from{transform:scale(.5); opacity:0}}
+  .c-hole{font-size:clamp(54px,9vw,120px); font-weight:900; letter-spacing:4px; color:var(--gold); text-shadow:0 0 60px rgba(247,201,72,.55)}
+  .c-hole.one{color:#fff; text-shadow:0 0 60px rgba(255,255,255,.6)}
+  .c-hole.one span{color:var(--gold)}
+  .c-parab{font-size:clamp(30px,5vw,60px); font-weight:800; margin-top:18px}
+  .c-stats{margin-top:22px; font-size:clamp(20px,3vw,32px); color:var(--muted); font-weight:700}
+  .c-stats b{color:var(--txt); font-variant-numeric:tabular-nums}
+
+  /* ranking fullscreen */
+  #rankOv .r-in{position:relative; width:100%; max-width:900px}
+  #rankOv h2{font-size:clamp(34px,6vw,64px); font-weight:900; letter-spacing:2px; margin-bottom:8px}
+  #rankOv h2 span{color:var(--gold)}
+  #rankOv .r-day{color:var(--muted); font-weight:700; margin-bottom:28px; font-size:18px}
+  .rtable{width:100%; border-collapse:collapse; font-size:clamp(16px,2.4vw,26px)}
+  .rtable td{padding:14px 18px; border-bottom:1px solid var(--line); text-align:left}
+  .rtable tr:first-child td{background:linear-gradient(90deg,rgba(247,201,72,.16),transparent)}
+  .rtable .pos{font-weight:900; width:80px}
+  .rtable .tac{font-weight:800; width:140px}
+  .rtable .tim{font-variant-numeric:tabular-nums; font-weight:800; text-align:right}
+  .r-hint{color:var(--muted); margin-top:22px; font-size:14px}
+
+  /* ================= ADMIN ================= */
+  #adminFab{
+    position:fixed; right:16px; top:16px; z-index:60; width:44px; height:44px;
+    border-radius:50%; background:rgba(22,27,34,.85); border:1px solid var(--line);
+    color:var(--muted); font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  #adminFab:hover{color:#fff; border-color:var(--accent)}
+  #drawer{
+    position:fixed; top:0; right:-620px; bottom:0; width:min(620px,100vw); z-index:70;
+    background:var(--panel); border-left:1px solid var(--line); transition:right .25s;
+    overflow-y:auto; padding:20px;
+  }
+  #drawer.open{right:0}
+  #drawer h2{font-size:18px; margin:18px 0 10px; display:flex; align-items:center; gap:8px}
+  #drawer h2:first-child{margin-top:0}
+  .dsec{background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px}
+  .mini{background:var(--panel); border:1px solid var(--line); color:var(--txt); padding:9px 14px; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px}
+  .mini:hover{border-color:var(--accent)}
+  .mini.green{background:var(--green2)} .mini.red{background:var(--red)} .mini.on{background:var(--green2); border-color:var(--green)}
+  .drow{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px}
+  .drow label{font-size:11px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:1px}
+  .dsec input[type=text],.dsec input[type=date]{
+    background:var(--panel); border:1px solid var(--line); color:var(--txt);
+    padding:9px 12px; border-radius:9px; font-size:14px; font-weight:600; outline:none; max-width:170px;
+  }
+  table.mod{width:100%; border-collapse:collapse; font-size:13px}
+  table.mod th,table.mod td{padding:8px 8px; border-bottom:1px solid var(--line); text-align:left}
+  table.mod th{color:var(--muted); font-size:10px; text-transform:uppercase}
+  .pill{display:inline-block; padding:1px 8px; border-radius:999px; font-size:10px; font-weight:800}
+  .pill.auto{background:#0f3325; color:var(--green)}
+  .pill.timeup{background:#3a1414; color:var(--red)}
+  .empty{color:var(--muted); text-align:center; padding:22px; font-size:13px}
+  .videowrap{position:relative; border-radius:10px; overflow:hidden; background:#000; margin-top:10px}
+  .videowrap video{width:100%; display:block}
+  .videowrap canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none}
+  .videowrap canvas.selecting{cursor:crosshair}
+  .meterwrap{position:relative; height:14px; background:var(--panel); border:1px solid var(--line); border-radius:99px; overflow:hidden; flex:1; min-width:120px}
+  .meter{height:100%; width:0%; background:linear-gradient(90deg,var(--green),var(--amber),var(--red))}
+  .thmark{position:absolute; top:0; bottom:0; left:50%; width:2px; background:#fff; opacity:.8}
+  .camstatus{font-size:12px; font-weight:700; color:var(--muted)}
+  .camstatus.ok{color:var(--green)} .camstatus.hot{color:var(--gold)}
+  input[type=range]{accent-color:var(--accent); width:130px}
+  select.mini{appearance:auto; max-width:170px}
+  .hint{color:var(--muted); font-size:12px; margin-top:10px; line-height:1.5}
+
+  /* modal PIN */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.75); display:none; align-items:center; justify-content:center; z-index:90; padding:20px}
+  .overlay.show{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:24px; width:100%; max-width:360px}
+  .modal h3{margin-bottom:12px; font-size:18px}
+  .modal input{width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--txt); padding:14px; border-radius:12px; font-size:20px; font-weight:700; outline:none; text-align:center; margin-bottom:14px}
+  .mrow{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .mrow .btn{margin-top:0; font-size:15px; padding:13px}
+
+  .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(120px);
+    background:var(--panel2); border:1px solid var(--line); padding:13px 20px; border-radius:12px;
+    font-weight:700; z-index:95; transition:transform .3s; box-shadow:0 10px 30px rgba(0,0,0,.5); font-size:14px}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast.ok{border-color:var(--green)} .toast.err{border-color:var(--red)}
+
+  /* compacta o jogo para caber na metade de baixo */
+  .brand{padding:12px 18px}
+  .gwrap{padding:12px 24px 20px}
+  .clock{font-size:clamp(54px,8vh,110px)}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <!-- METADE: VÍDEO LOCAL (propaganda) -->
+  <div id="adPane">
+    <video id="advid" autoplay muted loop playsinline></video>
+    <div id="adEmpty">🎬 <b>Vídeo da propaganda</b><span>Carregue o arquivo em ⚙ Admin → Vídeo do telão<br>(fica salvo nesta máquina e roda 100% local)</span></div>
+  </div>
+
+  <!-- METADE: JOGO -->
+  <div id="gamePane">
+    <div class="brand">
+      <div class="dot"></div>
+      <div><h1>GOLF CHALLENGE</h1><span id="evName">Ativação — Ranking do Dia</span></div>
+    </div>
+    <div class="gwrap">
+      <div class="gcard">
+
+        <!-- 1) CÓDIGO -->
+        <div id="codeScreen">
+          <div class="glabel">Digite o código do participante</div>
+          <input class="big" id="codeInput" maxlength="6" placeholder="····" autocomplete="off">
+          <button class="btn btn-green" id="codeBtn">Desbloquear</button>
+          <div class="err" id="codeErr"></div>
+          <span class="linklike" id="noCodeLink">sem código? digitar o nome manualmente</span>
+          <div id="nameFallback" style="display:none; margin-top:14px">
+            <input class="big name" id="nameInput" placeholder="Nome do participante" autocomplete="off">
+            <button class="btn btn-ghost" id="nameBtn">Usar este nome</button>
+          </div>
+        </div>
+
+        <!-- 2) PRONTO (aguardando 1ª tacada) -->
+        <div id="readyScreen" style="display:none">
+          <div class="pname" id="readyName">—</div>
+          <div class="clock" id="readyClock">3:00</div>
+          <div class="waitkey">Aguardando a 1ª tacada…</div>
+          <div class="sub">O cronômetro dispara na primeira tacada (tecla <span class="keychip" id="keyChip1">ESPAÇO</span>)</div>
+          <button class="btn btn-ghost" id="readyCancel">✕ Cancelar</button>
+        </div>
+
+        <!-- 3) RODANDO -->
+        <div id="runScreen" style="display:none">
+          <div class="pname" id="runName">—</div>
+          <div class="clock" id="clock">3:00</div>
+          <div class="sub" id="clockSub">Tempo restante</div>
+          <div class="strokes">TACADAS <b id="strokeN">0</b></div>
+          <button class="btn btn-red" id="holeBtn">⛳ ACERTOU — PARAR</button>
+          <button class="btn btn-ghost" id="runCancel">✕ Não acertou / Cancelar</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CELEBRAÇÃO FULLSCREEN -->
+<div class="fsov" id="celebOv">
+  <canvas id="celebCv"></canvas>
+  <div class="c-in">
+    <div class="c-hole" id="celebTitle">HOLE IN!</div>
+    <div class="c-parab" id="celebName">Parabéns!</div>
+    <div class="c-stats" id="celebStats"></div>
+  </div>
+</div>
+
+<!-- RANKING FULLSCREEN -->
+<div class="fsov" id="rankOv">
+  <div class="r-in">
+    <h2>🏆 RANKING <span>DO DIA</span></h2>
+    <div class="r-day" id="rankDay"></div>
+    <div id="rankBody"></div>
+    <div class="r-hint">ESC para voltar</div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<button id="adminFab" title="Admin">⚙</button>
+<div id="drawer">
+  <div class="drow" style="justify-content:space-between">
+    <b style="font-size:16px">⚙ Admin</b>
+    <button class="mini" id="drawerClose">✕ Fechar</button>
+  </div>
+
+  <h2>📺 Telão</h2>
+  <div class="dsec">
+    <div class="drow">
+      <button class="mini green" id="showRankBtn">🏆 Mostrar RANKING no telão</button>
+      <button class="mini" id="fsBtn">⛶ Tela cheia</button>
+    </div>
+    <div class="drow">
+      <label>Vídeo do telão</label>
+      <input type="file" id="vidFile" accept="video/*" style="display:none">
+      <button class="mini" id="vidPick">🎬 Carregar vídeo…</button>
+      <button class="mini red" id="vidClear" style="display:none">Remover vídeo</button>
+      <span class="camstatus" id="vidStatus">nenhum vídeo</span>
+    </div>
+  </div>
+
+  <h2>🛡️ Moderação <span class="camstatus" id="pendTxt"></span></h2>
+  <div class="dsec"><div id="modList"></div></div>
+
+  <h2>🏆 Ranking</h2>
+  <div class="dsec">
+    <div class="drow">
+      <input type="date" id="rankDate">
+      <button class="mini" id="exportCsv">⬇ CSV</button>
+      <button class="mini" id="backupBtn">💾 Backup</button>
+      <button class="mini" id="restoreBtn">📂 Restaurar</button>
+      <input type="file" id="restoreFile" accept="application/json" style="display:none">
+    </div>
+    <div id="rankListAdm"></div>
+  </div>
+
+  <h2>🎥 Câmera (buraco)</h2>
+  <div class="dsec">
+    <div class="drow">
+      <button class="mini" id="camToggle">Ativar câmera</button>
+      <span class="camstatus" id="camStatus">desligada</span>
+    </div>
+    <div id="camBody" style="display:none">
+      <div class="videowrap">
+        <video id="cam" autoplay playsinline muted></video>
+        <canvas id="camOv"></canvas>
+      </div>
+      <div class="drow">
+        <button class="mini" id="roiBtn">🟢 Definir buraco</button>
+        <button class="mini red" id="roiClear" style="display:none">🗑 Remover</button>
+        <select class="mini" id="camSel"></select>
+      </div>
+      <div class="drow">
+        <label>Sensib.</label><input type="range" id="sensRange" min="1" max="10" step="1" value="5">
+        <div class="meterwrap"><div class="meter" id="meter"></div><div class="thmark"></div></div>
+        <span class="camstatus" id="detStatus">defina o buraco</span>
+      </div>
+      <p class="hint">Arraste um quadrado sobre o buraco. Quando a bolinha cair e ficar ~0,6s, o cronômetro para sozinho. Câmera fixa e boa luz. A detecção continua ativa mesmo com este painel fechado.</p>
+    </div>
+  </div>
+
+  <h2>⚙️ Configurações</h2>
+  <div class="dsec">
+    <div class="drow"><label>Nome do evento</label><input type="text" id="setEvName"></div>
+    <div class="drow"><label>Tempo limite (min)</label><input type="text" id="setMinutes" inputmode="numeric" style="max-width:70px"></div>
+    <div class="drow"><label>PIN admin</label><input type="text" id="setPin" inputmode="numeric" style="max-width:100px"></div>
+    <div class="drow">
+      <label>Tecla da tacada</label>
+      <button class="mini" id="keyCapture">tecla: <b id="keyName">ESPAÇO</b> — clique p/ trocar</button>
+    </div>
+    <div class="drow"><button class="mini green" id="setSave">Salvar</button>
+      <button class="mini red" id="dangerReset">Apagar TODOS os dados</button></div>
+    <p class="hint">A tecla da tacada vale na tela do jogo: 1º aperto inicia o cronômetro, os seguintes somam tacadas. Serve teclado USB/sem fio ou botão que emule tecla.</p>
+  </div>
+</div>
+
+<!-- PIN -->
+<div class="overlay" id="pinOverlay">
+  <div class="modal">
+    <h3>🔒 Admin</h3>
+    <input type="text" inputmode="numeric" id="pinInput" placeholder="PIN" maxlength="8">
+    <div class="mrow">
+      <button class="btn btn-ghost" id="pinCancel">Cancelar</button>
+      <button class="btn btn-green" id="pinOk">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ================= Storage ================= */
+const K_ENTRIES="golf_entries", K_CFG="golf_cfg";
+const DEFAULT_CFG={evName:"Ativação — Ranking do Dia", minutes:3, pin:"1234",
+  camRoi:null, camSlider:5, camDeviceId:null, strokeCode:"Space", strokeLabel:"ESPAÇO"};
+
+function loadEntries(){ try{return JSON.parse(localStorage.getItem(K_ENTRIES))||[]}catch(e){return []} }
+function saveEntries(a){ localStorage.setItem(K_ENTRIES, JSON.stringify(a)); }
+function loadCfg(){ try{return Object.assign({},DEFAULT_CFG,JSON.parse(localStorage.getItem(K_CFG))||{})}catch(e){return {...DEFAULT_CFG}} }
+function saveCfg(c){ localStorage.setItem(K_CFG, JSON.stringify(c)); }
+
+let entries=loadEntries();
+let cfg=loadCfg();
+let adminOpen=false, pinOk=false, capturingKey=false;
+
+/* ================= Helpers ================= */
+const $=s=>document.querySelector(s);
+function uid(){ return Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36); }
+function todayStr(d=new Date()){ const p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+function fmt(ms){ const t=Math.max(0,ms); const m=Math.floor(t/60000); const s=Math.floor((t%60000)/1000); const d=Math.floor((t%1000)/100); return m+":"+String(s).padStart(2,"0")+"."+d; }
+function fmtClock(ms){ const t=Math.max(0,ms); const m=Math.floor(t/60000); const s=Math.floor((t%60000)/1000); return m+":"+String(s).padStart(2,"0"); }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+let toastT;
+function toast(msg,type=""){ const t=$("#toast"); t.textContent=msg; t.className="toast show "+type; clearTimeout(toastT); toastT=setTimeout(()=>t.className="toast",2600); }
+const API = (location.protocol==="http:"||location.protocol==="https:");
+
+/* ================= Som ================= */
+let actx;
+function beep(freq=880,dur=0.15,type="sine",vol=0.2){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.value=freq; o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(vol,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function alarm(){ beep(660,0.18,"square",0.25); setTimeout(()=>beep(660,0.18,"square",0.25),240); setTimeout(()=>beep(440,0.4,"square",0.25),480); }
+function fanfare(){ [523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>beep(f,0.22,"triangle",0.25), i*130)); setTimeout(()=>beep(1568,0.5,"triangle",0.28),700); }
+
+/* ================= ESTADO DO JOGO =================
+   mode: 'code' (aguarda código) | 'ready' (aguarda 1ª tacada) | 'run' */
+let mode="code";
+let player=null;      // {name, code}
+let strokes=0;
+let run=null;         // {start, lim, raf, timedOut}
+function limitMs(){ return Math.max(1,Number(cfg.minutes)||3)*60000; }
+
+function show(id){
+  ["codeScreen","readyScreen","runScreen"].forEach(x=>$("#"+x).style.display = x===id ? "block":"none");
+}
+
+/* ---- 1) código ---- */
+async function unlockByCode(){
+  const code=$("#codeInput").value.trim().toUpperCase();
+  $("#codeErr").textContent="";
+  if(code.length<3){ $("#codeErr").textContent="Digite o código."; return; }
+  if(!API){ $("#codeErr").textContent="Sem servidor — use o nome manual."; return; }
+  $("#codeBtn").disabled=true; $("#codeBtn").textContent="Verificando…";
+  try{
+    const r=await fetch("/api/inscricao?code="+encodeURIComponent(code));
+    const j=await r.json();
+    if(!r.ok||!j.nome) throw new Error(j.error||"Código não encontrado");
+    startReady(j.nome, code);
+  }catch(err){
+    $("#codeErr").textContent = err.message==="Failed to fetch" ? "Servidor indisponível — use o nome manual" : String(err.message||err);
+    beep(300,0.2,"sawtooth",0.15);
+  }finally{
+    $("#codeBtn").disabled=false; $("#codeBtn").textContent="Desbloquear";
+  }
+}
+$("#codeBtn").onclick=unlockByCode;
+$("#codeInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); unlockByCode(); } });
+$("#noCodeLink").onclick=()=>{ const f=$("#nameFallback"); f.style.display=f.style.display==="none"?"block":"none"; $("#nameInput").focus(); };
+$("#nameBtn").onclick=()=>{ const n=$("#nameInput").value.trim(); if(!n){ $("#nameInput").focus(); return; } startReady(n,null); };
+$("#nameInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#nameBtn").click(); } });
+
+/* ---- 2) pronto ---- */
+function startReady(name, code){
+  player={name:name, code:code||null};
+  strokes=0; run=null;
+  mode="ready";
+  $("#readyName").textContent=name;
+  $("#readyClock").textContent=fmtClock(limitMs());
+  $("#keyChip1").textContent=cfg.strokeLabel;
+  $("#codeInput").value=""; $("#nameInput").value=""; $("#nameFallback").style.display="none";
+  if(document.activeElement) document.activeElement.blur();
+  camCaptureRef(); // referência do buraco vazio
+  show("readyScreen");
+  beep(900,0.12,"sine",0.2);
+}
+$("#readyCancel").onclick=()=>resetToCode("Jogada cancelada");
+
+/* ---- 3) tacadas / cronômetro ---- */
+function strokePress(){
+  if(mode==="ready"){
+    mode="run";
+    run={start:Date.now(), lim:limitMs(), timedOut:false};
+    $("#runName").textContent=player.name;
+    show("runScreen");
+    addStroke();
+    tick();
+    run.raf=setInterval(tick,80);
+    beep(1200,0.12,"sine",0.22);
+  }else if(mode==="run"){
+    addStroke();
+  }
+}
+function addStroke(){
+  strokes++;
+  const el=$("#strokeN");
+  el.textContent=strokes;
+  el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+  beep(760,0.08,"sine",0.18);
+}
+function tick(){
+  if(!run) return;
+  const remain=run.lim-(Date.now()-run.start);
+  const clock=$("#clock");
+  clock.textContent=fmtClock(remain);
+  if(remain<=0){
+    clock.textContent="0:00"; clock.className="clock danger";
+    $("#clockSub").textContent="TEMPO ESGOTADO";
+    if(!run.timedOut){ run.timedOut=true; alarm(); }
+  }else if(remain<=30000){
+    clock.className="clock warn"; $("#clockSub").textContent="Tempo restante";
+  }else{ clock.className="clock"; $("#clockSub").textContent="Tempo restante"; }
+}
+
+function finish(auto){
+  if(mode!=="run"||!run) return;
+  const elapsed=Date.now()-run.start;
+  clearInterval(run.raf);
+  const e={
+    id:uid(), name:player.name, code:player.code, timeMs:elapsed,
+    strokes:Math.max(1,strokes),
+    status: auto ? "approved" : "pending",   // detecção da câmera = aprovado; parada manual passa pela moderação
+    timedOut:run.timedOut, auto:!!auto,
+    day:todayStr(), createdAt:new Date().toISOString()
+  };
+  entries.push(e); saveEntries(entries);
+  syncJogada(e);
+  celebrate(e);
+  run=null; mode="celeb";
+  refreshPend();
+}
+$("#holeBtn").onclick=()=>finish(false);
+$("#runCancel").onclick=()=>{ if(run) clearInterval(run.raf); run=null; resetToCode("Jogada cancelada"); };
+
+function resetToCode(msg){
+  if(run) clearInterval(run.raf);
+  run=null; player=null; strokes=0; mode="code";
+  $("#clock").className="clock";
+  show("codeScreen");
+  $("#codeInput").focus();
+  if(msg) toast(msg);
+}
+
+/* ---- tecla da tacada + atalhos ---- */
+window.addEventListener("keydown",e=>{
+  if(capturingKey){
+    e.preventDefault();
+    cfg.strokeCode=e.code;
+    cfg.strokeLabel=(e.code==="Space")?"ESPAÇO":(e.key.length===1?e.key.toUpperCase():e.code.replace(/^Key|^Digit/,""));
+    saveCfg(cfg); capturingKey=false;
+    $("#keyName").textContent=cfg.strokeLabel;
+    $("#keyChip1").textContent=cfg.strokeLabel;
+    toast("Tecla da tacada: "+cfg.strokeLabel,"ok");
+    return;
+  }
+  if(e.key==="Escape"){ closeRankOv(); return; }
+  const tag=(e.target.tagName||"").toLowerCase();
+  if(tag==="input"||tag==="select"||tag==="textarea") return;
+  if(adminOpen) return;
+  if($("#rankOv").classList.contains("show")||$("#celebOv").classList.contains("show")) return;
+  if(e.code===cfg.strokeCode && !e.repeat){
+    if(mode==="ready"||mode==="run"){ e.preventDefault(); strokePress(); }
+  }
+});
+
+/* ================= CELEBRAÇÃO (fullscreen) ================= */
+let celebT=null;
+function celebrate(e){
+  fanfare();
+  const one = e.strokes===1;
+  const t=$("#celebTitle");
+  t.className="c-hole"+(one?" one":"");
+  t.innerHTML = one ? 'HOLE-IN-<span>ONE!</span>' : 'HOLE IN!';
+  $("#celebName").textContent="Parabéns "+e.name+"!";
+  $("#celebStats").innerHTML="<b>"+e.strokes+"</b> tacada"+(e.strokes>1?"s":"")+" &nbsp;·&nbsp; <b>"+fmt(e.timeMs)+"</b>"
+    +(e.auto?' &nbsp;·&nbsp; 🎥 detecção automática':'');
+  $("#celebOv").classList.add("show");
+  runConfetti(6500);
+  clearTimeout(celebT);
+  celebT=setTimeout(closeCeleb, 7000);
+}
+function closeCeleb(){
+  clearTimeout(celebT);
+  $("#celebOv").classList.remove("show");
+  if(mode==="celeb") resetToCode();
+}
+$("#celebOv").addEventListener("click",closeCeleb);
+
+function runConfetti(dur){
+  const cv=$("#celebCv"), ctx=cv.getContext("2d");
+  cv.width=innerWidth; cv.height=innerHeight;
+  const colors=["#e11d2a","#ffffff","#f7c948","#26c281","#ff8fa3"];
+  const P=[];
+  for(let i=0;i<240;i++){
+    P.push({x:Math.random()*cv.width, y:-40-Math.random()*cv.height*0.5,
+      vx:(Math.random()-0.5)*2.4, vy:2+Math.random()*4,
+      w:7+Math.random()*9, h:5+Math.random()*7, c:colors[i%colors.length],
+      a:Math.random()*Math.PI*2, av:(Math.random()-0.5)*0.25,
+      fl:Math.random()*Math.PI*2, flv:0.12+Math.random()*0.22, ball:Math.random()<0.12});
+  }
+  const t0=performance.now();
+  (function frame(t){
+    if(t-t0>dur || !$("#celebOv").classList.contains("show")){ ctx.clearRect(0,0,cv.width,cv.height); return; }
+    ctx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(p=>{
+      p.x+=p.vx+Math.sin(p.fl)*0.8; p.y+=p.vy; p.a+=p.av; p.fl+=p.flv;
+      if(p.y>cv.height+30){ p.y=-30; p.x=Math.random()*cv.width; }
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a);
+      if(p.ball){ const g=ctx.createRadialGradient(-2,-2,1,0,0,7); g.addColorStop(0,"#fff"); g.addColorStop(1,"#b9c2cc");
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,7,0,7); ctx.fill();
+      }else{ ctx.scale(1, Math.max(0.15, Math.abs(Math.cos(p.fl)))); ctx.fillStyle=p.c; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); }
+      ctx.restore();
+    });
+    requestAnimationFrame(frame);
+  })(t0);
+}
+
+/* ================= RANKING ================= */
+function rankedRows(day){
+  return entries.filter(e=>e.status==="approved"&&e.day===day)
+    .sort((a,b)=>((a.strokes||99)-(b.strokes||99)) || (a.timeMs-b.timeMs));
+}
+function rankTableHTML(rows,limit){
+  const medals=["🥇","🥈","🥉"];
+  let h='<table class="rtable"><tbody>';
+  rows.slice(0,limit||10).forEach((e,i)=>{
+    h+='<tr><td class="pos">'+(medals[i]||(i+1))+'</td><td><b>'+esc(e.name)+'</b></td>'
+      +'<td class="tac">'+(e.strokes||"—")+' tacada'+((e.strokes||0)>1?'s':'')+'</td>'
+      +'<td class="tim">'+fmt(e.timeMs)+'</td></tr>';
+  });
+  return h+"</tbody></table>";
+}
+function openRankOv(){
+  const day=todayStr();
+  const rows=rankedRows(day);
+  $("#rankDay").textContent=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"});
+  $("#rankBody").innerHTML=rows.length?rankTableHTML(rows,10):'<div class="empty" style="font-size:20px">Ainda não há jogadas aprovadas hoje.</div>';
+  $("#rankOv").classList.add("show");
+}
+function closeRankOv(){ $("#rankOv").classList.remove("show"); }
+$("#showRankBtn").onclick=()=>{ closeDrawer(); openRankOv(); };
+$("#rankOv").addEventListener("click",closeRankOv);
+
+/* admin ranking list */
+function renderRankAdm(){
+  const day=$("#rankDate").value||todayStr();
+  const rows=rankedRows(day);
+  $("#rankListAdm").innerHTML=rows.length?rankTableHTML(rows,100):'<div class="empty">Nenhuma jogada aprovada nesta data.</div>';
+}
+$("#rankDate").addEventListener("change",renderRankAdm);
+
+/* ================= MODERAÇÃO (paradas manuais) ================= */
+function refreshPend(){
+  const n=entries.filter(e=>e.status==="pending").length;
+  $("#pendTxt").textContent=n?("· "+n+" pendente"+(n>1?"s":"")):"";
+}
+function renderMod(){
+  const list=$("#modList");
+  const pend=entries.filter(e=>e.status==="pending").sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  if(!pend.length){ list.innerHTML='<div class="empty">Nenhuma jogada aguardando. Jogadas encerradas pela câmera são aprovadas automaticamente; paradas manuais aparecem aqui.</div>'; return; }
+  let h='<table class="mod"><thead><tr><th>Nome</th><th>Tacadas</th><th>Tempo</th><th></th></tr></thead><tbody>';
+  pend.forEach(e=>{
+    h+='<tr><td><b>'+esc(e.name)+'</b> '+(e.timedOut?'<span class="pill timeup">tempo esgotado</span>':'')+'</td>'
+      +'<td>'+(e.strokes||"—")+'</td><td>'+fmt(e.timeMs)+'</td>'
+      +'<td style="white-space:nowrap;text-align:right">'
+      +'<button class="mini green" data-ap="'+e.id+'">✔</button> '
+      +'<button class="mini red" data-rj="'+e.id+'">✕</button></td></tr>';
+  });
+  list.innerHTML=h+"</tbody></table>";
+  list.querySelectorAll("[data-ap]").forEach(b=>b.onclick=()=>{ setStatus(b.dataset.ap,"approved"); });
+  list.querySelectorAll("[data-rj]").forEach(b=>b.onclick=()=>{ setStatus(b.dataset.rj,"rejected"); });
+}
+function setStatus(id,status){
+  const e=entries.find(x=>x.id===id); if(!e) return;
+  e.status=status; e.moderatedAt=new Date().toISOString();
+  saveEntries(entries); renderMod(); refreshPend(); renderRankAdm();
+  syncJogada(e);
+  toast(status==="approved"?"Aprovado ✔":"Rejeitado ✕", status==="approved"?"ok":"");
+}
+
+/* ================= SYNC NocoDB (via servidor) ================= */
+function syncJogada(e){
+  if(!API) return;
+  fetch("/api/jogada",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(e)}).catch(()=>{});
+}
+
+/* ================= CÂMERA (só o buraco) ================= */
+const cam={ on:false, stream:null, roi:cfg.camRoi||null, ref:null, N:48,
+  loopId:null, lastDet:0, hitSince:0, selecting:false, drag:null, deviceId:cfg.camDeviceId||null };
+const camV=$("#cam"), camOv=$("#camOv");
+const octx=(()=>{ const c=document.createElement("canvas"); c.width=48; c.height=48; return c.getContext("2d",{willReadFrequently:true}); })();
+function sensThreshold(){ const v=Number($("#sensRange").value)||5; return 0.55 - v*0.05; }
+
+async function startCam(){
+  try{
+    const vc={ width:{ideal:640}, height:{ideal:480} };
+    if(cam.deviceId) vc.deviceId={exact:cam.deviceId};
+    else vc.facingMode={ideal:"environment"};
+    cam.stream=await navigator.mediaDevices.getUserMedia({video:vc, audio:false});
+    camV.srcObject=cam.stream;
+    cam.on=true;
+    $("#camBody").style.display="block";
+    $("#camToggle").textContent="Desligar"; $("#camToggle").classList.add("on");
+    $("#camStatus").textContent="ligada"; $("#camStatus").className="camstatus ok";
+    camV.addEventListener("loadedmetadata",syncOverlay,{once:true});
+    await listCams();
+    updateRoiClear();
+    camLoop();
+  }catch(err){
+    toast("Não foi possível acessar a câmera","err");
+    $("#camStatus").textContent="erro de acesso"; $("#camStatus").className="camstatus";
+  }
+}
+function stopCam(){
+  cam.on=false;
+  if(cam.loopId) cancelAnimationFrame(cam.loopId);
+  if(cam.stream) cam.stream.getTracks().forEach(t=>t.stop());
+  cam.stream=null; cam.ref=null; camV.srcObject=null;
+  $("#camBody").style.display="none";
+  $("#camToggle").textContent="Ativar câmera"; $("#camToggle").classList.remove("on");
+  $("#camStatus").textContent="desligada"; $("#camStatus").className="camstatus";
+}
+$("#camToggle").onclick=()=>cam.on?stopCam():startCam();
+
+async function listCams(){
+  try{
+    const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="videoinput");
+    const sel=$("#camSel");
+    sel.innerHTML=devs.map((d,i)=>'<option value="'+esc(d.deviceId)+'">'+esc(d.label||("Câmera "+(i+1)))+'</option>').join("");
+    if(cam.deviceId) sel.value=cam.deviceId;
+    sel.onchange=async()=>{ cam.deviceId=sel.value; cfg.camDeviceId=sel.value; saveCfg(cfg);
+      if(cam.stream) cam.stream.getTracks().forEach(t=>t.stop());
+      cam.ref=null; await startCam(); };
+  }catch(e){}
+}
+function syncOverlay(){ camOv.width=camV.videoWidth||640; camOv.height=camV.videoHeight||480; }
+
+$("#roiBtn").onclick=()=>{
+  cam.selecting=!cam.selecting;
+  camOv.classList.toggle("selecting",cam.selecting);
+  $("#roiBtn").classList.toggle("on",cam.selecting);
+  toast(cam.selecting?"Arraste um quadrado sobre o buraco":"Seleção cancelada");
+};
+function evNorm(e){
+  const r=camOv.getBoundingClientRect();
+  return { x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),
+           y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height)) };
+}
+camOv.addEventListener("pointerdown",e=>{ if(!cam.selecting) return; camOv.setPointerCapture(e.pointerId); cam.drag={a:evNorm(e), b:evNorm(e)}; });
+camOv.addEventListener("pointermove",e=>{ if(cam.drag) cam.drag.b=evNorm(e); });
+camOv.addEventListener("pointerup",()=>{
+  if(!cam.drag) return;
+  const a=cam.drag.a, b=cam.drag.b;
+  cam.drag=null; cam.selecting=false;
+  camOv.classList.remove("selecting"); $("#roiBtn").classList.remove("on");
+  const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y);
+  const w=Math.abs(a.x-b.x), h=Math.abs(a.y-b.y);
+  if(w<0.02||h<0.02){ toast("Quadrado muito pequeno — tente de novo","err"); return; }
+  cam.roi={x:x,y:y,w:w,h:h}; cfg.camRoi=cam.roi; saveCfg(cfg);
+  cam.ref=null;
+  setTimeout(camCaptureRef,300);
+  updateRoiClear();
+  toast("Buraco definido ✔ — teste com a bolinha","ok");
+});
+function updateRoiClear(){ $("#roiClear").style.display = cam.roi ? "inline-block" : "none"; }
+$("#roiClear").onclick=()=>{
+  cam.roi=null; cam.ref=null; cam.hitSince=0;
+  cfg.camRoi=null; saveCfg(cfg);
+  camOv.getContext("2d").clearRect(0,0,camOv.width,camOv.height);
+  $("#meter").style.width="0%";
+  updateRoiClear();
+  toast("Buraco removido","ok");
+};
+function roiPixels(){
+  if(!cam.on||!cam.roi||!camV.videoWidth) return null;
+  const r=cam.roi;
+  try{
+    octx.drawImage(camV, r.x*camV.videoWidth, r.y*camV.videoHeight, r.w*camV.videoWidth, r.h*camV.videoHeight, 0,0,cam.N,cam.N);
+    return octx.getImageData(0,0,cam.N,cam.N).data;
+  }catch(e){ return null; }
+}
+function camCaptureRef(){ const p=roiPixels(); if(p) cam.ref=new Uint8ClampedArray(p); }
+function diffFrac(cur,ref){
+  let n=0;
+  for(let i=0;i<cur.length;i+=4){
+    const d=Math.abs(cur[i]-ref[i])+Math.abs(cur[i+1]-ref[i+1])+Math.abs(cur[i+2]-ref[i+2]);
+    if(d>95) n++;
+  }
+  return n/(cur.length/4);
+}
+function camLoop(){
+  if(!cam.on) return;
+  cam.loopId=requestAnimationFrame(camLoop);
+  const now=performance.now();
+  if(now-cam.lastDet<66) return;
+  cam.lastDet=now;
+  if(camOv.width!==camV.videoWidth && camV.videoWidth) syncOverlay();
+  const ctx=camOv.getContext("2d");
+  ctx.clearRect(0,0,camOv.width,camOv.height);
+  if(cam.drag){
+    const a=cam.drag.a, b=cam.drag.b;
+    ctx.strokeStyle="#26c281"; ctx.lineWidth=3; ctx.setLineDash([8,6]);
+    ctx.strokeRect(Math.min(a.x,b.x)*camOv.width, Math.min(a.y,b.y)*camOv.height,
+      Math.abs(a.x-b.x)*camOv.width, Math.abs(a.y-b.y)*camOv.height);
+    ctx.setLineDash([]);
+  }
+  let f=0, hot=false;
+  if(cam.roi){
+    const cur=roiPixels();
+    if(cur){
+      if(!cam.ref) cam.ref=new Uint8ClampedArray(cur);
+      f=diffFrac(cur,cam.ref);
+      const th=sensThreshold();
+      hot=f>=th;
+      if(f<th*0.35 && mode!=="run"){ const r=cam.ref; for(let i=0;i<cur.length;i++){ r[i]=r[i]*0.95+cur[i]*0.05; } }
+      // gatilho: bolinha no buraco por 600ms com o cronômetro rodando
+      if(mode==="run" && run && !cam.selecting){
+        const elapsed=Date.now()-run.start;
+        if(hot && elapsed>1200){
+          if(!cam.hitSince) cam.hitSince=now;
+          else if(now-cam.hitSince>600){ cam.hitSince=0; finish(true); }
+        }else cam.hitSince=0;
+      }else cam.hitSince=0;
+      $("#meter").style.width=Math.min(100, f/(th*2)*100)+"%";
+      const ds=$("#detStatus");
+      if(hot){ ds.textContent=(mode==="run")?"⛳ DETECTANDO…":"objeto no buraco ✔"; ds.className="camstatus hot"; }
+      else{ ds.textContent=(mode==="run")?"monitorando":"pronto"; ds.className="camstatus ok"; }
+    }
+    const r=cam.roi;
+    const X=r.x*camOv.width, Y=r.y*camOv.height, W=r.w*camOv.width, H=r.h*camOv.height;
+    ctx.strokeStyle=hot?"#f7c948":"#26c281"; ctx.lineWidth=4;
+    ctx.strokeRect(X,Y,W,H);
+    ctx.fillStyle=hot?"rgba(247,201,72,.25)":"rgba(38,194,129,.12)";
+    ctx.fillRect(X,Y,W,H);
+    ctx.fillStyle=hot?"#f7c948":"#26c281";
+    ctx.font="bold 16px system-ui";
+    ctx.fillText("⛳ BURACO", X+6, Math.max(18,Y-8));
+  }else{
+    $("#detStatus").textContent="defina o buraco"; $("#detStatus").className="camstatus";
+  }
+}
+$("#sensRange").value=cfg.camSlider||5;
+$("#sensRange").addEventListener("input",()=>{ cfg.camSlider=Number($("#sensRange").value); saveCfg(cfg); });
+
+/* ================= VÍDEO LOCAL (IndexedDB) ================= */
+const IDB_NAME="golf_media", IDB_STORE="files";
+function idb(){
+  return new Promise((res,rej)=>{
+    const rq=indexedDB.open(IDB_NAME,1);
+    rq.onupgradeneeded=()=>rq.result.createObjectStore(IDB_STORE);
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej(rq.error);
+  });
+}
+async function idbSet(k,v){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,"readonly"); const rq=tx.objectStore(IDB_STORE).get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+async function idbDel(k){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).delete(k); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+
+async function loadVideo(){
+  try{
+    const blob=await idbGet("advideo");
+    if(blob){
+      $("#advid").src=URL.createObjectURL(blob);
+      $("#adEmpty").style.display="none";
+      $("#vidStatus").textContent="vídeo carregado ("+Math.round(blob.size/1048576)+" MB)";
+      $("#vidClear").style.display="inline-block";
+    }
+  }catch(e){}
+}
+$("#vidPick").onclick=()=>$("#vidFile").click();
+$("#vidFile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    await idbSet("advideo",f);
+    toast("Vídeo salvo nesta máquina ✔","ok");
+    loadVideo();
+  }catch(err){ toast("Falha ao salvar o vídeo (muito grande?)","err"); }
+  e.target.value="";
+};
+$("#vidClear").onclick=async()=>{
+  await idbDel("advideo");
+  $("#advid").removeAttribute("src"); $("#advid").load();
+  $("#adEmpty").style.display="flex";
+  $("#vidStatus").textContent="nenhum vídeo";
+  $("#vidClear").style.display="none";
+};
+
+/* ================= ADMIN / PIN ================= */
+function openDrawer(){
+  adminOpen=true;
+  $("#drawer").classList.add("open");
+  renderMod(); renderRankAdm(); refreshPend();
+}
+function closeDrawer(){ adminOpen=false; $("#drawer").classList.remove("open"); }
+$("#adminFab").onclick=()=>{
+  if(pinOk){ adminOpen?closeDrawer():openDrawer(); return; }
+  $("#pinInput").value=""; $("#pinOverlay").classList.add("show");
+  setTimeout(()=>$("#pinInput").focus(),50);
+};
+$("#drawerClose").onclick=closeDrawer;
+$("#pinCancel").onclick=()=>$("#pinOverlay").classList.remove("show");
+$("#pinOk").onclick=()=>{
+  if($("#pinInput").value===String(cfg.pin)){
+    pinOk=true; $("#pinOverlay").classList.remove("show"); openDrawer();
+  }else{ toast("PIN incorreto","err"); $("#pinInput").value=""; $("#pinInput").focus(); }
+};
+$("#pinInput").addEventListener("keydown",e=>{ if(e.key==="Enter") $("#pinOk").click(); });
+
+$("#fsBtn").onclick=()=>{ document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); };
+$("#keyCapture").onclick=()=>{ capturingKey=true; $("#keyName").textContent="aperte a tecla…"; };
+
+$("#setSave").onclick=()=>{
+  cfg.evName=$("#setEvName").value.trim()||DEFAULT_CFG.evName;
+  cfg.minutes=Math.max(1,Number($("#setMinutes").value)||3);
+  cfg.pin=($("#setPin").value.trim()||"1234");
+  saveCfg(cfg); applyCfg();
+  toast("Configurações salvas","ok");
+};
+$("#dangerReset").onclick=()=>{
+  if(confirm("Apagar TODAS as jogadas desta máquina? (o NocoDB não é afetado)")){
+    entries=[]; saveEntries(entries);
+    renderMod(); renderRankAdm(); refreshPend();
+    toast("Dados locais apagados","err");
+  }
+};
+function applyCfg(){
+  $("#evName").textContent=cfg.evName;
+  $("#setEvName").value=cfg.evName;
+  $("#setMinutes").value=cfg.minutes;
+  $("#setPin").value=cfg.pin;
+  $("#keyName").textContent=cfg.strokeLabel;
+  $("#keyChip1").textContent=cfg.strokeLabel;
+}
+
+/* ================= Backup / CSV ================= */
+function download(filename,text,type){
+  const blob=new Blob([text],{type:type||"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$("#backupBtn").onclick=()=>{ download("golf-backup-"+todayStr()+".json", JSON.stringify({cfg:cfg,entries:entries},null,2)); toast("Backup salvo","ok"); };
+$("#restoreBtn").onclick=()=>$("#restoreFile").click();
+$("#restoreFile").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const data=JSON.parse(r.result);
+      if(!Array.isArray(data.entries)) throw 0;
+      if(confirm("Restaurar backup? Substitui os dados locais.")){
+        entries=data.entries; saveEntries(entries);
+        if(data.cfg){ cfg=Object.assign({},DEFAULT_CFG,data.cfg); saveCfg(cfg); applyCfg(); }
+        renderMod(); renderRankAdm(); refreshPend();
+        toast("Backup restaurado","ok");
+      }
+    }catch(err){ toast("Arquivo inválido","err"); }
+    e.target.value="";
+  };
+  r.readAsText(f);
+};
+$("#exportCsv").onclick=()=>{
+  const day=$("#rankDate").value||todayStr();
+  const rows=rankedRows(day);
+  if(!rows.length){ toast("Sem dados para exportar","err"); return; }
+  let csv="Posicao;Participante;Codigo;Tacadas;Tempo;Data\n";
+  rows.forEach((e,i)=>{ csv+=(i+1)+";"+e.name.replace(/;/g,",")+";"+(e.code||"")+";"+(e.strokes||"")+";"+fmt(e.timeMs)+";"+e.day+"\n"; });
+  download("ranking-"+day+".csv","﻿"+csv,"text/csv");
+  toast("CSV exportado","ok");
+};
+
+/* ================= tela acesa ================= */
+let wakeLock=null;
+async function keepAwake(){
+  try{
+    if(!wakeLock && "wakeLock" in navigator){
+      wakeLock=await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release",()=>{ wakeLock=null; });
+    }
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") keepAwake(); });
+document.addEventListener("click",keepAwake,{once:true});
+keepAwake();
+
+/* ================= Init ================= */
+$("#rankDate").value=todayStr();
+applyCfg();
+refreshPend();
+loadVideo();
+show("codeScreen");
+$("#codeInput").focus();
+window.addEventListener("beforeunload",e=>{ if(run){ e.preventDefault(); e.returnValue=""; } });
+</script>
+</body>
+</html>

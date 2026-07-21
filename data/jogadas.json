@@ -1,0 +1,14 @@
+[
+ {
+  "LocalId": "t1",
+  "Codigo": "EZYM",
+  "Nome": "Maria Teste",
+  "Tacadas": 1,
+  "TempoMs": 42300,
+  "Tempo": "0:42.3",
+  "Status": "approved",
+  "Auto": true,
+  "Dia": "2026-07-17",
+  "CriadoEm": "2026-07-17T15:00:00"
+ }
+]
