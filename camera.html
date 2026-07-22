@@ -51,7 +51,7 @@
 </head>
 <body>
 <header>
-  <div class="brand"><span class="dot"></span> MONITOR DA CÂMERA</div>
+  <div class="brand"><img src="assets/ouro-preto-branco.png" alt="Ouro Preto Investimentos" style="height:30px;width:auto"> MONITOR DA CÂMERA</div>
   <button class="mini" id="roiBtn">🟢 Definir buraco</button>
   <button class="mini red" id="roiClear" style="display:none">🗑 Remover</button>
   <label>Sensib.</label><input type="range" id="sensRange" min="1" max="10" step="1" value="5">
@@ -116,7 +116,7 @@ $("#roiBtn").onclick=()=>{
   selecting=!selecting;
   ov.classList.toggle("selecting",selecting);
   $("#roiBtn").classList.toggle("on",selecting);
-  toast(selecting?"Arraste um quadrado sobre o buraco":"Seleção cancelada");
+  toast(selecting?"Arraste um círculo sobre o buraco":"Seleção cancelada");
 };
 function evNorm(e){
   const r=ov.getBoundingClientRect();
@@ -137,7 +137,7 @@ ov.addEventListener("pointerup",()=>{
   ov.classList.remove("selecting"); $("#roiBtn").classList.remove("on");
   const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y);
   const w=Math.abs(a.x-b.x), h=Math.abs(a.y-b.y);
-  if(w<0.02||h<0.02){ toast("Quadrado muito pequeno — tente de novo","err"); return; }
+  if(w<0.02||h<0.02){ toast("Círculo muito pequeno — tente de novo","err"); return; }
   patchCfg({camRoi:{x:x,y:y,w:w,h:h}});
   ref=null;
   toast("Buraco definido ✔ — sincronizado com o telão","ok");
@@ -157,12 +157,24 @@ function roiPixels(r){
   }catch(e){ return null; }
 }
 function diffFrac(cur,ref){
-  let n=0;
+  // área CIRCULAR + análise de claridade: a bolinha de golf é CLARA,
+  // então medimos quanto da mudança veio de pixels claros (bolinha)
+  // versus escuros (pé, sombra, perna) — {f: sinal, ball: fração clara}
+  const NN=Math.sqrt(cur.length/4);
+  let n=0, tot=0, bright=0;
   for(let i=0;i<cur.length;i+=4){
+    const p=i/4, px=(p%NN)+0.5, py=Math.floor(p/NN)+0.5;
+    const dx=px/NN-0.5, dy=py/NN-0.5;
+    if(dx*dx+dy*dy>0.25) continue;
+    tot++;
     const d=Math.abs(cur[i]-ref[i])+Math.abs(cur[i+1]-ref[i+1])+Math.abs(cur[i+2]-ref[i+2]);
-    if(d>95) n++;
+    if(d>95){
+      n++;
+      const lum=cur[i]*0.299+cur[i+1]*0.587+cur[i+2]*0.114;
+      if(lum>140) bright++;
+    }
   }
-  return n/(cur.length/4);
+  return { f: tot?n/tot:0, ball: n?bright/n:1 };
 }
 
 function loop(t){
@@ -177,9 +189,10 @@ function loop(t){
 
   if(drag){
     const a=drag.a, b=drag.b;
+    const dX=Math.min(a.x,b.x)*ov.width, dY=Math.min(a.y,b.y)*ov.height;
+    const dW=Math.abs(a.x-b.x)*ov.width, dH=Math.abs(a.y-b.y)*ov.height;
     ctx.strokeStyle="#26c281"; ctx.lineWidth=4; ctx.setLineDash([10,7]);
-    ctx.strokeRect(Math.min(a.x,b.x)*ov.width, Math.min(a.y,b.y)*ov.height,
-      Math.abs(a.x-b.x)*ov.width, Math.abs(a.y-b.y)*ov.height);
+    ctx.beginPath(); ctx.ellipse(dX+dW/2, dY+dH/2, dW/2, dH/2, 0, 0, Math.PI*2); ctx.stroke();
     ctx.setLineDash([]);
   }
 
@@ -194,19 +207,21 @@ function loop(t){
   const cur=roiPixels(r);
   if(cur){
     if(!ref) ref=new Uint8ClampedArray(cur);
-    f=diffFrac(cur,ref);
+    const an=diffFrac(cur,ref);
+    f=an.f;
     const th=sensThreshold();
-    hot=f>=th;
+    const ballOK=(cfg().ballFilter===false)||an.ball>=0.45;
+    hot=f>=th && ballOK;
+    var ignored=f>=th && !ballOK;
     if(f<th*0.35){ for(let i=0;i<cur.length;i++){ ref[i]=ref[i]*0.95+cur[i]*0.05; } }
     $("#meter").style.width=Math.min(100, f/(th*2)*100)+"%";
-    $("#detSt").textContent=hot?"⛳ OBJETO NO BURACO":"monitorando";
-    $("#detSt").className="st "+(hot?"hot":"ok");
+    $("#detSt").textContent=hot?"⛳ OBJETO NO BURACO":(ignored?"movimento ignorado (não é bolinha)":"monitorando");
+    $("#detSt").className="st "+(hot?"hot":(ignored?"":"ok"));
   }
   const X=r.x*ov.width, Y=r.y*ov.height, W=r.w*ov.width, H=r.h*ov.height;
-  ctx.strokeStyle=hot?"#f7c948":"#26c281"; ctx.lineWidth=5;
-  ctx.strokeRect(X,Y,W,H);
-  ctx.fillStyle=hot?"rgba(247,201,72,.28)":"rgba(38,194,129,.12)";
-  ctx.fillRect(X,Y,W,H);
+  ctx.beginPath(); ctx.ellipse(X+W/2, Y+H/2, W/2, H/2, 0, 0, Math.PI*2);
+  ctx.fillStyle=hot?"rgba(247,201,72,.28)":"rgba(38,194,129,.12)"; ctx.fill();
+  ctx.strokeStyle=hot?"#f7c948":"#26c281"; ctx.lineWidth=5; ctx.stroke();
   ctx.fillStyle=hot?"#f7c948":"#26c281";
   ctx.font="bold 22px system-ui";
   ctx.fillText("⛳ BURACO", X+8, Math.max(26,Y-10));

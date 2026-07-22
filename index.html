@@ -89,7 +89,7 @@
   .keychip{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:3px 12px; font-family:monospace}
 
   /* logo Ouro Preto (versão negativa transparente) */
-  .oplogo{height:56px;width:auto;margin-left:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.55))}
+  .oplogo{height:60px;width:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.55))}
   .oplogo-celeb{height:120px;width:auto;margin:0 auto 28px;display:block;filter:drop-shadow(0 6px 24px rgba(0,0,0,.6))}
   .oplogo-rank{height:88px;width:auto;margin:0 auto 22px;display:block;filter:drop-shadow(0 4px 18px rgba(0,0,0,.55))}
 
@@ -197,9 +197,8 @@
   <!-- METADE: JOGO -->
   <div id="gamePane">
     <div class="brand">
-      <div class="dot"></div>
-      <div><h1>GOLF CHALLENGE</h1><span id="evName">Ativação — Ranking do Dia</span></div>
       <img class="oplogo" src="assets/ouro-preto-branco.png" alt="Ouro Preto Investimentos">
+      <span id="evName" style="display:none"></span>
     </div>
     <div class="gwrap">
       <div class="gcard">
@@ -322,7 +321,13 @@
         <div class="meterwrap"><div class="meter" id="meter"></div><div class="thmark"></div></div>
         <span class="camstatus" id="detStatus">defina o buraco</span>
       </div>
-      <p class="hint">Arraste um quadrado sobre o buraco. Quando a bolinha cair e ficar ~0,6s, o cronômetro para sozinho. Câmera fixa e boa luz. A detecção continua ativa mesmo com este painel fechado.</p>
+      <div class="drow">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--txt);cursor:pointer">
+          <input type="checkbox" id="ballChk" style="width:17px;height:17px;accent-color:var(--green)">
+          🎯 Detectar só a BOLINHA (ignora pés e sombras escuras)
+        </label>
+      </div>
+      <p class="hint">Arraste um círculo sobre o buraco. Quando a bolinha cair e ficar ~0,6s, o cronômetro para sozinho. Câmera fixa e boa luz. A detecção continua ativa mesmo com este painel fechado.</p>
     </div>
   </div>
 
@@ -720,7 +725,7 @@ $("#roiBtn").onclick=()=>{
   cam.selecting=!cam.selecting;
   camOv.classList.toggle("selecting",cam.selecting);
   $("#roiBtn").classList.toggle("on",cam.selecting);
-  toast(cam.selecting?"Arraste um quadrado sobre o buraco":"Seleção cancelada");
+  toast(cam.selecting?"Arraste um círculo sobre o buraco":"Seleção cancelada");
 };
 function evNorm(e){
   const r=camOv.getBoundingClientRect();
@@ -736,7 +741,7 @@ camOv.addEventListener("pointerup",()=>{
   camOv.classList.remove("selecting"); $("#roiBtn").classList.remove("on");
   const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y);
   const w=Math.abs(a.x-b.x), h=Math.abs(a.y-b.y);
-  if(w<0.02||h<0.02){ toast("Quadrado muito pequeno — tente de novo","err"); return; }
+  if(w<0.02||h<0.02){ toast("Círculo muito pequeno — tente de novo","err"); return; }
   cam.roi={x:x,y:y,w:w,h:h}; cfg.camRoi=cam.roi; saveCfg(cfg);
   cam.ref=null;
   setTimeout(camCaptureRef,300);
@@ -762,12 +767,24 @@ function roiPixels(){
 }
 function camCaptureRef(){ const p=roiPixels(); if(p) cam.ref=new Uint8ClampedArray(p); }
 function diffFrac(cur,ref){
-  let n=0;
+  // área CIRCULAR + análise de claridade: a bolinha de golf é CLARA,
+  // então medimos quanto da mudança veio de pixels claros (bolinha)
+  // versus escuros (pé, sombra, perna) — {f: sinal, ball: fração clara}
+  const NN=Math.sqrt(cur.length/4);
+  let n=0, tot=0, bright=0;
   for(let i=0;i<cur.length;i+=4){
+    const p=i/4, px=(p%NN)+0.5, py=Math.floor(p/NN)+0.5;
+    const dx=px/NN-0.5, dy=py/NN-0.5;
+    if(dx*dx+dy*dy>0.25) continue;
+    tot++;
     const d=Math.abs(cur[i]-ref[i])+Math.abs(cur[i+1]-ref[i+1])+Math.abs(cur[i+2]-ref[i+2]);
-    if(d>95) n++;
+    if(d>95){
+      n++;
+      const lum=cur[i]*0.299+cur[i+1]*0.587+cur[i+2]*0.114;
+      if(lum>140) bright++;
+    }
   }
-  return n/(cur.length/4);
+  return { f: tot?n/tot:0, ball: n?bright/n:1 };
 }
 function camLoop(){
   if(!cam.on) return;
@@ -780,9 +797,10 @@ function camLoop(){
   ctx.clearRect(0,0,camOv.width,camOv.height);
   if(cam.drag){
     const a=cam.drag.a, b=cam.drag.b;
+    const dX=Math.min(a.x,b.x)*camOv.width, dY=Math.min(a.y,b.y)*camOv.height;
+    const dW=Math.abs(a.x-b.x)*camOv.width, dH=Math.abs(a.y-b.y)*camOv.height;
     ctx.strokeStyle="#26c281"; ctx.lineWidth=3; ctx.setLineDash([8,6]);
-    ctx.strokeRect(Math.min(a.x,b.x)*camOv.width, Math.min(a.y,b.y)*camOv.height,
-      Math.abs(a.x-b.x)*camOv.width, Math.abs(a.y-b.y)*camOv.height);
+    ctx.beginPath(); ctx.ellipse(dX+dW/2, dY+dH/2, dW/2, dH/2, 0, 0, Math.PI*2); ctx.stroke();
     ctx.setLineDash([]);
   }
   let f=0, hot=false;
@@ -790,9 +808,12 @@ function camLoop(){
     const cur=roiPixels();
     if(cur){
       if(!cam.ref) cam.ref=new Uint8ClampedArray(cur);
-      f=diffFrac(cur,cam.ref);
+      const an=diffFrac(cur,cam.ref);
+      f=an.f;
       const th=sensThreshold();
-      hot=f>=th;
+      const ballOK=(cfg.ballFilter===false)||an.ball>=0.45;
+      hot=f>=th && ballOK;
+      const ignored=f>=th && !ballOK;
       if(f<th*0.35 && mode!=="run"){ const r=cam.ref; for(let i=0;i<cur.length;i++){ r[i]=r[i]*0.95+cur[i]*0.05; } }
       // gatilho: bolinha no buraco por 600ms com o cronômetro rodando
       if(mode==="run" && run && !cam.selecting){
@@ -805,14 +826,14 @@ function camLoop(){
       $("#meter").style.width=Math.min(100, f/(th*2)*100)+"%";
       const ds=$("#detStatus");
       if(hot){ ds.textContent=(mode==="run")?"⛳ DETECTANDO…":"objeto no buraco ✔"; ds.className="camstatus hot"; }
+      else if(ignored){ ds.textContent="movimento ignorado (não parece a bolinha)"; ds.className="camstatus"; }
       else{ ds.textContent=(mode==="run")?"monitorando":"pronto"; ds.className="camstatus ok"; }
     }
     const r=cam.roi;
     const X=r.x*camOv.width, Y=r.y*camOv.height, W=r.w*camOv.width, H=r.h*camOv.height;
-    ctx.strokeStyle=hot?"#f7c948":"#26c281"; ctx.lineWidth=4;
-    ctx.strokeRect(X,Y,W,H);
-    ctx.fillStyle=hot?"rgba(247,201,72,.25)":"rgba(38,194,129,.12)";
-    ctx.fillRect(X,Y,W,H);
+    ctx.beginPath(); ctx.ellipse(X+W/2, Y+H/2, W/2, H/2, 0, 0, Math.PI*2);
+    ctx.fillStyle=hot?"rgba(247,201,72,.25)":"rgba(38,194,129,.12)"; ctx.fill();
+    ctx.strokeStyle=hot?"#f7c948":"#26c281"; ctx.lineWidth=4; ctx.stroke();
     ctx.fillStyle=hot?"#f7c948":"#26c281";
     ctx.font="bold 16px system-ui";
     ctx.fillText("⛳ BURACO", X+6, Math.max(18,Y-8));
@@ -822,6 +843,8 @@ function camLoop(){
 }
 $("#sensRange").value=cfg.camSlider||5;
 $("#sensRange").addEventListener("input",()=>{ cfg.camSlider=Number($("#sensRange").value); saveCfg(cfg); });
+$("#ballChk").checked = cfg.ballFilter!==false;
+$("#ballChk").addEventListener("change",()=>{ cfg.ballFilter=$("#ballChk").checked; saveCfg(cfg); });
 
 /* ================= VÍDEO LOCAL (IndexedDB) ================= */
 const IDB_NAME="golf_media", IDB_STORE="files";
@@ -971,6 +994,7 @@ window.addEventListener("storage",e=>{
   cam.roi=cfg.camRoi||null;
   cam.ref=null; cam.hitSince=0;
   $("#sensRange").value=cfg.camSlider||5;
+  $("#ballChk").checked = cfg.ballFilter!==false;
   updateRoiClear();
   applyCfg();
 });
