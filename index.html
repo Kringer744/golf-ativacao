@@ -88,6 +88,11 @@
   }
   .keychip{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:3px 12px; font-family:monospace}
 
+  /* logo Ouro Preto (selo branco) */
+  .oplogo{height:46px;width:auto;background:#fff;border-radius:12px;padding:6px 12px;margin-left:auto}
+  .oplogo-celeb{height:70px;width:auto;background:#fff;border-radius:14px;padding:8px 16px;margin:0 auto 24px;display:block}
+  .oplogo-rank{height:58px;width:auto;background:#fff;border-radius:12px;padding:7px 14px;margin:0 auto 18px;display:block}
+
   /* ================= OVERLAYS FULLSCREEN ================= */
   .fsov{position:fixed; inset:0; z-index:80; display:none; align-items:center; justify-content:center; background:#0b0f14; text-align:center; padding:30px}
   .fsov.show{display:flex}
@@ -194,6 +199,7 @@
     <div class="brand">
       <div class="dot"></div>
       <div><h1>GOLF CHALLENGE</h1><span id="evName">Ativação — Ranking do Dia</span></div>
+      <img class="oplogo" src="assets/ouro-preto.png" alt="Ouro Preto Investimentos">
     </div>
     <div class="gwrap">
       <div class="gcard">
@@ -239,6 +245,7 @@
 <div class="fsov" id="celebOv">
   <canvas id="celebCv"></canvas>
   <div class="c-in">
+    <img class="oplogo-celeb" src="assets/ouro-preto.png" alt="Ouro Preto Investimentos">
     <div class="c-hole" id="celebTitle">HOLE IN!</div>
     <div class="c-parab" id="celebName">Parabéns!</div>
     <div class="c-stats" id="celebStats"></div>
@@ -248,6 +255,7 @@
 <!-- RANKING FULLSCREEN -->
 <div class="fsov" id="rankOv">
   <div class="r-in">
+    <img class="oplogo-rank" src="assets/ouro-preto.png" alt="Ouro Preto Investimentos">
     <h2>🏆 RANKING <span>DO DIA</span></h2>
     <div class="r-day" id="rankDay"></div>
     <div id="rankBody"></div>
