@@ -33,7 +33,7 @@
     border-top:2px solid var(--line);
     overflow-y:auto;
   }
-  .brand{display:flex; align-items:center; gap:12px; font-weight:800; padding:18px 22px}
+  .brand{display:flex; align-items:center; justify-content:center; gap:12px; font-weight:800; padding:18px 22px}
   .brand .dot{width:30px;height:30px;border-radius:50%;
     background:conic-gradient(from 45deg,#fff 0 25%,var(--accent) 0 50%,#fff 0 75%,var(--accent) 0);
     box-shadow:0 0 0 3px #0d1117,0 0 0 5px var(--accent)}
@@ -183,6 +183,24 @@
   .brand{padding:12px 18px}
   .gwrap{padding:12px 24px 20px}
   .clock{font-size:clamp(54px,8vh,110px)}
+
+  /* ===== responsivo para painéis de LED (escala pela altura) ===== */
+  #adPane{flex:0 0 45%}
+  .brand{padding:clamp(6px,1.2vh,14px) 18px}
+  .oplogo{height:clamp(32px,6vh,60px)}
+  .gwrap{padding:clamp(4px,1vh,14px) 20px}
+  .glabel{margin-bottom:clamp(6px,1.4vh,16px); font-size:clamp(11px,1.8vh,14px)}
+  input.big{padding:clamp(10px,1.8vh,20px); font-size:clamp(22px,4.5vh,38px)}
+  input.big.name{font-size:clamp(18px,3.4vh,28px)}
+  .btn{font-size:clamp(14px,2.4vh,22px); padding:clamp(10px,2vh,20px); margin-top:clamp(8px,1.4vh,14px)}
+  .btn-ghost{font-size:clamp(12px,1.9vh,15px); padding:clamp(8px,1.6vh,14px)}
+  .pname{font-size:clamp(17px,3.2vh,30px); margin-bottom:2px}
+  .clock{font-size:clamp(36px,9.5vh,120px)}
+  .sub{font-size:clamp(11px,1.8vh,15px); margin-top:4px}
+  .waitkey{font-size:clamp(14px,2.6vh,22px); margin-top:clamp(8px,1.8vh,26px)}
+  .strokes{margin-top:clamp(8px,1.8vh,22px); font-size:clamp(13px,2.2vh,20px)}
+  .strokes b{min-width:clamp(40px,7vh,64px); height:clamp(40px,7vh,64px); font-size:clamp(22px,4.5vh,38px)}
+  .err{min-height:14px; margin-top:6px; font-size:clamp(11px,1.7vh,14px)}
 </style>
 </head>
 <body>
@@ -335,6 +353,7 @@
   <div class="dsec">
     <div class="drow"><label>Nome do evento</label><input type="text" id="setEvName"></div>
     <div class="drow"><label>Tempo limite (min)</label><input type="text" id="setMinutes" inputmode="numeric" style="max-width:70px"></div>
+    <div class="drow"><label>Altura do vídeo (%)</label><input type="text" id="setVideoPct" inputmode="numeric" style="max-width:70px"></div>
     <div class="drow"><label>PIN admin</label><input type="text" id="setPin" inputmode="numeric" style="max-width:100px"></div>
     <div class="drow">
       <label>Tecla da tacada</label>
@@ -365,7 +384,7 @@
 /* ================= Storage ================= */
 const K_ENTRIES="golf_entries", K_CFG="golf_cfg";
 const DEFAULT_CFG={evName:"Ativação — Ranking do Dia", minutes:3, pin:"1234",
-  camRoi:null, camSlider:5, camDeviceId:null, strokeCode:"Space", strokeLabel:"ESPAÇO"};
+  camRoi:null, camSlider:5, camDeviceId:null, strokeCode:"Space", strokeLabel:"ESPAÇO", videoPct:45};
 
 function loadEntries(){ try{return JSON.parse(localStorage.getItem(K_ENTRIES))||[]}catch(e){return []} }
 function saveEntries(a){ localStorage.setItem(K_ENTRIES, JSON.stringify(a)); }
@@ -380,8 +399,9 @@ let adminOpen=false, pinOk=false, capturingKey=false;
 const $=s=>document.querySelector(s);
 function uid(){ return Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36); }
 function todayStr(d=new Date()){ const p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
-function fmt(ms){ const t=Math.max(0,ms); const m=Math.floor(t/60000); const s=Math.floor((t%60000)/1000); const d=Math.floor((t%1000)/100); return m+":"+String(s).padStart(2,"0")+"."+d; }
+function fmt(ms){ const t=Math.max(0,ms); const m=Math.floor(t/60000); const s=Math.floor((t%60000)/1000); const c=Math.floor((t%1000)/10); return m+":"+String(s).padStart(2,"0")+"."+String(c).padStart(2,"0"); }
 function fmtClock(ms){ const t=Math.max(0,ms); const m=Math.floor(t/60000); const s=Math.floor((t%60000)/1000); return m+":"+String(s).padStart(2,"0"); }
+function fmtClockCs(ms){ const t=Math.max(0,ms); const m=Math.floor(t/60000); const s=Math.floor((t%60000)/1000); const c=Math.floor((t%1000)/10); return m+":"+String(s).padStart(2,"0")+"."+String(c).padStart(2,"0"); }
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 let toastT;
 function toast(msg,type=""){ const t=$("#toast"); t.textContent=msg; t.className="toast show "+type; clearTimeout(toastT); toastT=setTimeout(()=>t.className="toast",2600); }
@@ -445,7 +465,7 @@ function startReady(name, code){
   strokes=0; run=null;
   mode="ready";
   $("#readyName").textContent=name;
-  $("#readyClock").textContent=fmtClock(limitMs());
+  $("#readyClock").textContent=fmtClockCs(limitMs());
   $("#keyChip1").textContent=cfg.strokeLabel;
   $("#codeInput").value=""; $("#nameInput").value=""; $("#nameFallback").style.display="none";
   if(document.activeElement) document.activeElement.blur();
@@ -464,7 +484,7 @@ function strokePress(){
     show("runScreen");
     addStroke();
     tick();
-    run.raf=setInterval(tick,80);
+    run.raf=setInterval(tick,50);
     beep(1200,0.12,"sine",0.22);
   }else if(mode==="run"){
     addStroke();
@@ -481,9 +501,9 @@ function tick(){
   if(!run) return;
   const remain=run.lim-(Date.now()-run.start);
   const clock=$("#clock");
-  clock.textContent=fmtClock(remain);
+  clock.textContent=fmtClockCs(remain);
   if(remain<=0){
-    clock.textContent="0:00"; clock.className="clock danger";
+    clock.textContent="0:00.00"; clock.className="clock danger";
     $("#clockSub").textContent="TEMPO ESGOTADO";
     if(!run.timedOut){ run.timedOut=true; alarm(); }
   }else if(remain<=30000){
@@ -916,6 +936,7 @@ $("#keyCapture").onclick=()=>{ capturingKey=true; $("#keyName").textContent="ape
 $("#setSave").onclick=()=>{
   cfg.evName=$("#setEvName").value.trim()||DEFAULT_CFG.evName;
   cfg.minutes=Math.max(1,Number($("#setMinutes").value)||3);
+  cfg.videoPct=Math.min(70,Math.max(15,Number($("#setVideoPct").value)||45));
   cfg.pin=($("#setPin").value.trim()||"1234");
   saveCfg(cfg); applyCfg();
   toast("Configurações salvas","ok");
@@ -931,6 +952,8 @@ function applyCfg(){
   $("#evName").textContent=cfg.evName;
   $("#setEvName").value=cfg.evName;
   $("#setMinutes").value=cfg.minutes;
+  $("#setVideoPct").value=cfg.videoPct||45;
+  $("#adPane").style.flexBasis=(cfg.videoPct||45)+"%";
   $("#setPin").value=cfg.pin;
   $("#keyName").textContent=cfg.strokeLabel;
   $("#keyChip1").textContent=cfg.strokeLabel;
