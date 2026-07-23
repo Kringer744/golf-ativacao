@@ -434,21 +434,50 @@ function show(id){
   ["codeScreen","readyScreen","runScreen"].forEach(x=>$("#"+x).style.display = x===id ? "block":"none");
 }
 
-/* ---- 1) código ---- */
+/* ---- 1) código ----
+   Cache local dos códigos, sincronizado em segundo plano: digitar o
+   código é INSTANTÂNEO mesmo com a internet do local lenta. */
+let codesCache={};
+try{ codesCache=JSON.parse(localStorage.getItem("golf_codes"))||{}; }catch(e){}
+async function syncCodes(){
+  if(!API) return;
+  try{
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),8000);
+    const r=await fetch("/api/codigos",{signal:ctl.signal,cache:"no-store"});
+    clearTimeout(t);
+    if(r.ok){
+      const j=await r.json();
+      if(Array.isArray(j.list)){
+        const m={};
+        j.list.forEach(x=>{ if(x.code) m[x.code]=x.nome; });
+        codesCache=m;
+        localStorage.setItem("golf_codes",JSON.stringify(m));
+      }
+    }
+  }catch(e){}
+}
+syncCodes();
+setInterval(syncCodes,20000);
+
 async function unlockByCode(){
   const code=$("#codeInput").value.trim().toUpperCase();
   $("#codeErr").textContent="";
   if(code.length<3){ $("#codeErr").textContent="Digite o código."; return; }
+  if(codesCache[code]){ startReady(codesCache[code], code); return; } // instantâneo
   if(!API){ $("#codeErr").textContent="Sem servidor — use o nome manual."; return; }
   $("#codeBtn").disabled=true; $("#codeBtn").textContent="Verificando…";
   try{
-    const r=await fetch("/api/inscricao?code="+encodeURIComponent(code));
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),9000);
+    const r=await fetch("/api/inscricao?code="+encodeURIComponent(code),{signal:ctl.signal});
+    clearTimeout(t);
     const j=await r.json();
     if(!r.ok||!j.nome) throw new Error(j.error||"Código não encontrado");
     startReady(j.nome, code);
   }catch(err){
-    $("#codeErr").textContent = err.message==="Failed to fetch" ? "Servidor indisponível — use o nome manual" : String(err.message||err);
+    const off = err.name==="AbortError" || err.message==="Failed to fetch";
+    $("#codeErr").textContent = off ? "Internet lenta — tente de novo ou use o nome manual" : String(err.message||err);
     beep(300,0.2,"sawtooth",0.15);
+    syncCodes(); // aproveita pra atualizar o cache
   }finally{
     $("#codeBtn").disabled=false; $("#codeBtn").textContent="Desbloquear";
   }
