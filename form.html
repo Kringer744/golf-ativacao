@@ -68,10 +68,12 @@
     <form id="f" novalidate>
       <label for="nome">Nome completo *</label>
       <input id="nome" name="nome" type="text" autocomplete="name" required>
+      <label for="empresa">Empresa *</label>
+      <input id="empresa" name="empresa" type="text" autocomplete="organization" required>
       <label for="zap">WhatsApp *</label>
       <input id="zap" name="whatsapp" type="tel" autocomplete="tel" placeholder="(00) 00000-0000" required>
-      <label for="email">E-mail</label>
-      <input id="email" name="email" type="email" autocomplete="email" placeholder="opcional">
+      <label for="email">E-mail *</label>
+      <input id="email" name="email" type="email" autocomplete="email" required>
       <div class="chk">
         <input type="checkbox" id="lgpd" required>
         <span>Autorizo o uso dos meus dados para contato sobre esta ação promocional.</span>
@@ -99,10 +101,12 @@
 const $=s=>document.querySelector(s);
 $("#f").addEventListener("submit", async e=>{
   e.preventDefault();
-  const nome=$("#nome").value.trim(), zap=$("#zap").value.trim(), email=$("#email").value.trim();
+  const nome=$("#nome").value.trim(), zap=$("#zap").value.trim(), email=$("#email").value.trim(), empresa=$("#empresa").value.trim();
   $("#err").textContent="";
   if(!nome || nome.split(" ").length<1){ $("#err").textContent="Preencha o nome."; return; }
+  if(!empresa){ $("#err").textContent="Preencha a empresa."; return; }
   if(zap.replace(/\D/g,"").length<10){ $("#err").textContent="Preencha um WhatsApp válido com DDD."; return; }
+  if(!email.includes("@") || !email.includes(".")){ $("#err").textContent="Preencha um e-mail válido."; return; }
   if(!$("#lgpd").checked){ $("#err").textContent="É preciso autorizar o contato para participar."; return; }
   const btn=$("#sendBtn");
   btn.disabled=true; btn.textContent="Enviando…";
@@ -110,7 +114,7 @@ $("#f").addEventListener("submit", async e=>{
     const r=await fetch("/api/inscricao",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({nome:nome, whatsapp:zap, email:email})
+      body:JSON.stringify({nome:nome, whatsapp:zap, email:email, empresa:empresa})
     });
     const j=await r.json();
     if(!r.ok||!j.code) throw new Error(j.error||"Falha ao gerar o código. Tente de novo.");

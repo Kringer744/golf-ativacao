@@ -148,7 +148,7 @@ function render(){
   $("#list").innerHTML=rows.map(r=>
     '<div class="row'+(r.jogou?' jogou':'')+'">'
     +'<div class="code">'+esc(r.code)+'</div>'
-    +'<div class="who"><b>'+esc(r.nome)+'</b><span>'+hora(r.criado)+(r.whatsapp?' · '+esc(r.whatsapp):'')+'</span></div>'
+    +'<div class="who"><b>'+esc(r.nome)+'</b><span>'+hora(r.criado)+(r.empresa?' · '+esc(r.empresa):'')+(r.whatsapp?' · '+esc(r.whatsapp):'')+'</span></div>'
     +'<span class="st '+(r.jogou?'done">✔ jogou':'wait">aguardando')+'</span>'
     +'</div>'
   ).join("");

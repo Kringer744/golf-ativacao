@@ -171,7 +171,7 @@ def gen_code(existing):
             return code
 
 
-def db_create_inscricao(nome, whatsapp, email):
+def db_create_inscricao(nome, whatsapp, email, empresa):
     from datetime import datetime
     now = datetime.now().isoformat(timespec="seconds")
     if noco_ready():
@@ -182,7 +182,8 @@ def db_create_inscricao(nome, whatsapp, email):
             existing = {r.get("Codigo") for r in rows.get("list", [])}
             code = gen_code(existing)
             noco_req("POST", f"/api/v2/tables/{tid}/records",
-                     {"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email, "CriadoEm": now})
+                     {"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email,
+                      "Empresa": empresa, "CriadoEm": now})
             return code
         except Exception:
             pass  # sem internet/banco → PLANO B: salva local e sincroniza depois
@@ -190,7 +191,7 @@ def db_create_inscricao(nome, whatsapp, email):
         rows = local_load("inscricoes")
         code = gen_code({r["Codigo"] for r in rows})
         rows.append({"Codigo": code, "Nome": nome, "WhatsApp": whatsapp, "Email": email,
-                     "CriadoEm": now, "_pendente": True})
+                     "Empresa": empresa, "CriadoEm": now, "_pendente": True})
         local_save("inscricoes", rows)
     return code
 
@@ -244,6 +245,7 @@ def db_list_codigos():
         w = str(r.get("WhatsApp") or "")
         out.append({
             "code": r.get("Codigo"), "nome": r.get("Nome"),
+            "empresa": r.get("Empresa") or "",
             "whatsapp": ("…" + w[-4:]) if len(w) >= 4 else "",
             "criado": r.get("CriadoEm") or "",
             "jogou": r.get("Codigo") in jogados,
@@ -349,11 +351,16 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": "Nome obrigatório"})
             if len(str(b.get("whatsapp", "")).strip()) < 10:
                 return self._json(400, {"error": "WhatsApp inválido"})
+            if "@" not in str(b.get("email", "")):
+                return self._json(400, {"error": "E-mail inválido"})
+            if not str(b.get("empresa", "")).strip():
+                return self._json(400, {"error": "Informe a empresa"})
             try:
                 code = db_create_inscricao(
                     str(b["nome"]).strip()[:120],
                     str(b.get("whatsapp", "")).strip()[:30],
-                    str(b.get("email", "")).strip()[:120])
+                    str(b.get("email", "")).strip()[:120],
+                    str(b.get("empresa", "")).strip()[:120])
             except Exception as e:
                 return self._json(424, {"error": "Falha no banco: " + str(e)[:120]})
             return self._json(200, {"code": code})
