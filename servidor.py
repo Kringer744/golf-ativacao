@@ -253,6 +253,30 @@ def db_list_codigos():
     return out
 
 
+def db_ranking(dia):
+    """Ranking do dia direto do banco (menos tacadas, depois menor tempo)."""
+    rows = []
+    if noco_ready():
+        try:
+            rows = _noco_all(noco_cfg()["tables"]["jogadas"])
+        except Exception:
+            rows = []
+    if not rows:
+        with lock:
+            rows = local_load("jogadas")
+    out = []
+    for r in rows:
+        if (r.get("Dia") or "") != dia or (r.get("Status") or "") != "approved":
+            continue
+        out.append({
+            "name": r.get("Nome"), "code": r.get("Codigo") or "",
+            "strokes": r.get("Tacadas") or 0, "timeMs": r.get("TempoMs") or 0,
+            "auto": bool(r.get("Auto")),
+        })
+    out.sort(key=lambda x: ((x["strokes"] or 99), x["timeMs"]))
+    return out
+
+
 def db_save_jogada(j):
     row = {
         "LocalId": str(j.get("id", "")), "Codigo": j.get("code") or "",
@@ -329,6 +353,15 @@ class Handler(SimpleHTTPRequestHandler):
             if not r:
                 return self._json(404, {"error": "Código não encontrado"})
             return self._json(200, {"nome": r.get("Nome"), "code": r.get("Codigo")})
+        if self.path.startswith("/api/ranking"):
+            from urllib.parse import urlparse, parse_qs
+            from datetime import datetime
+            q = parse_qs(urlparse(self.path).query)
+            dia = (q.get("dia") or [""])[0] or datetime.now().strftime("%Y-%m-%d")
+            try:
+                return self._json(200, {"list": db_ranking(dia)})
+            except Exception as e:
+                return self._json(424, {"error": str(e)[:120]})
         if self.path == "/api/codigos":
             try:
                 return self._json(200, {"list": db_list_codigos()})

@@ -614,7 +614,17 @@ function runConfetti(dur){
   })(t0);
 }
 
-/* ================= RANKING ================= */
+/* ================= RANKING (fonte oficial: BANCO) ================= */
+async function fetchRankingAPI(day){
+  if(!API) return null;
+  try{
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),5000);
+    const r=await fetch("/api/ranking?dia="+day,{signal:ctl.signal,cache:"no-store"});
+    clearTimeout(t);
+    if(r.ok){ const j=await r.json(); if(Array.isArray(j.list)) return j.list; }
+  }catch(e){}
+  return null;
+}
 function rankedRows(day){
   return entries.filter(e=>e.status==="approved"&&e.day===day)
     .sort((a,b)=>((a.strokes||99)-(b.strokes||99)) || (a.timeMs-b.timeMs));
@@ -629,15 +639,17 @@ function rankTableHTML(rows,limit){
   });
   return h+"</tbody></table>";
 }
-let rankT=null;
-function openRankOv(autoClose){
-  const day=todayStr();
-  const rows=rankedRows(day);
+let rankT=null, rankSeq=0;
+async function openRankOv(autoClose){
+  const day=todayStr(), seq=++rankSeq;
   $("#rankDay").textContent=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"});
-  $("#rankBody").innerHTML=rows.length?rankTableHTML(rows,10):'<div class="empty" style="font-size:20px">Ainda não há jogadas aprovadas hoje.</div>';
+  const paint=rows=>{ $("#rankBody").innerHTML=rows.length?rankTableHTML(rows,10):'<div class="empty" style="font-size:20px">Ainda não há jogadas aprovadas hoje.</div>'; };
+  paint(rankedRows(day)); // provisório enquanto o banco responde
   $("#rankOv").classList.add("show");
   clearTimeout(rankT);
   if(autoClose) rankT=setTimeout(closeRankOv, 9000); // some sozinho e volta pro jogo
+  const rows=await fetchRankingAPI(day); // RANKING OFICIAL DO BANCO
+  if(rows && seq===rankSeq && $("#rankOv").classList.contains("show")) paint(rows);
 }
 function closeRankOv(){
   clearTimeout(rankT);
@@ -648,10 +660,12 @@ $("#showRankBtn").onclick=()=>{ closeDrawer(); openRankOv(false); };
 $("#rankOv").addEventListener("click",closeRankOv);
 
 /* admin ranking list */
-function renderRankAdm(){
+async function renderRankAdm(){
   const day=$("#rankDate").value||todayStr();
-  const rows=rankedRows(day);
-  $("#rankListAdm").innerHTML=rows.length?rankTableHTML(rows,100):'<div class="empty">Nenhuma jogada aprovada nesta data.</div>';
+  const paint=rows=>{ $("#rankListAdm").innerHTML=rows.length?rankTableHTML(rows,100):'<div class="empty">Nenhuma jogada aprovada nesta data.</div>'; };
+  paint(rankedRows(day));
+  const rows=await fetchRankingAPI(day);
+  if(rows) paint(rows);
 }
 $("#rankDate").addEventListener("change",renderRankAdm);
 
@@ -986,12 +1000,12 @@ $("#restoreFile").onchange=e=>{
   };
   r.readAsText(f);
 };
-$("#exportCsv").onclick=()=>{
+$("#exportCsv").onclick=async()=>{
   const day=$("#rankDate").value||todayStr();
-  const rows=rankedRows(day);
+  const rows=(await fetchRankingAPI(day))||rankedRows(day);
   if(!rows.length){ toast("Sem dados para exportar","err"); return; }
   let csv="Posicao;Participante;Codigo;Tacadas;Tempo;Data\n";
-  rows.forEach((e,i)=>{ csv+=(i+1)+";"+e.name.replace(/;/g,",")+";"+(e.code||"")+";"+(e.strokes||"")+";"+fmt(e.timeMs)+";"+e.day+"\n"; });
+  rows.forEach((e,i)=>{ csv+=(i+1)+";"+e.name.replace(/;/g,",")+";"+(e.code||"")+";"+(e.strokes||"")+";"+fmt(e.timeMs)+";"+day+"\n"; });
   download("ranking-"+day+".csv","﻿"+csv,"text/csv");
   toast("CSV exportado","ok");
 };
