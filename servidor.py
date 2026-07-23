@@ -213,6 +213,44 @@ def db_find_inscricao(code):
     return None
 
 
+def _noco_all(tid, fields=None):
+    out, offset = [], 0
+    extra = f"&fields={fields}" if fields else ""
+    while True:
+        page = noco_req("GET", f"/api/v2/tables/{tid}/records?limit=200&offset={offset}{extra}").get("list", [])
+        out += page
+        if len(page) < 200:
+            return out
+        offset += 200
+
+
+def db_list_codigos():
+    """Todos os cadastros em ordem de chegada, marcando quem já jogou."""
+    ins, jogados = [], set()
+    if noco_ready():
+        try:
+            c = noco_cfg()["tables"]
+            ins = _noco_all(c["inscricoes"])
+            jogados = {r.get("Codigo") for r in _noco_all(c["jogadas"], "Codigo") if r.get("Codigo")}
+        except Exception:
+            ins = []
+    if not ins:
+        with lock:
+            ins = local_load("inscricoes")
+            jogados |= {r.get("Codigo") for r in local_load("jogadas") if r.get("Codigo")}
+    ins.sort(key=lambda r: r.get("CriadoEm") or "")
+    out = []
+    for r in ins:
+        w = str(r.get("WhatsApp") or "")
+        out.append({
+            "code": r.get("Codigo"), "nome": r.get("Nome"),
+            "whatsapp": ("…" + w[-4:]) if len(w) >= 4 else "",
+            "criado": r.get("CriadoEm") or "",
+            "jogou": r.get("Codigo") in jogados,
+        })
+    return out
+
+
 def db_save_jogada(j):
     row = {
         "LocalId": str(j.get("id", "")), "Codigo": j.get("code") or "",
@@ -289,10 +327,17 @@ class Handler(SimpleHTTPRequestHandler):
             if not r:
                 return self._json(404, {"error": "Código não encontrado"})
             return self._json(200, {"nome": r.get("Nome"), "code": r.get("Codigo")})
+        if self.path == "/api/codigos":
+            try:
+                return self._json(200, {"list": db_list_codigos()})
+            except Exception as e:
+                return self._json(424, {"error": str(e)[:120]})
         if self.path in ("/form", "/form/"):
             self.path = "/form.html"
         elif self.path in ("/camera", "/camera/"):
             self.path = "/camera.html"
+        elif self.path in ("/codigos", "/codigos/"):
+            self.path = "/codigos.html"
         elif self.path == "/":
             self.path = "/index.html"
         return super().do_GET()
