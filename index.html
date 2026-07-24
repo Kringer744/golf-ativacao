@@ -751,6 +751,7 @@ async function startCam(){
     $("#camBody").style.display="block";
     $("#camToggle").textContent="Desligar"; $("#camToggle").classList.add("on");
     $("#camStatus").textContent="ligada"; $("#camStatus").className="camstatus ok";
+    cfg.camOn=true; saveCfg(cfg);
     camV.addEventListener("loadedmetadata",syncOverlay,{once:true});
     await listCams();
     updateRoiClear();
@@ -768,6 +769,7 @@ function stopCam(){
   $("#camBody").style.display="none";
   $("#camToggle").textContent="Ativar câmera"; $("#camToggle").classList.remove("on");
   $("#camStatus").textContent="desligada"; $("#camStatus").className="camstatus";
+  cfg.camOn=false; saveCfg(cfg);
 }
 $("#camToggle").onclick=()=>cam.on?stopCam():startCam();
 
@@ -1068,6 +1070,7 @@ window.addEventListener("storage",e=>{
 /* ================= Init ================= */
 $("#rankDate").value=todayStr();
 applyCfg();
+if(cfg.camOn && navigator.mediaDevices) startCam(); // câmera religa sozinha após F5
 refreshPend();
 loadVideo();
 show("codeScreen");
